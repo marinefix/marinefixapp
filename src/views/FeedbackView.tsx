@@ -16,9 +16,7 @@ export function FeedbackView() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
 
-  async function handleSubmit(
-    e: React.FormEvent
-  ) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
     setError("");
@@ -49,14 +47,8 @@ export function FeedbackView() {
       setEmail("");
       setType("feedback");
     } catch (err) {
-      console.error(
-        "Feedback submission failed:",
-        err
-      );
-
-      setError(
-        "Unable to submit feedback. Please try again."
-      );
+      console.error("Feedback submission failed:", err);
+      setError("Unable to submit feedback. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -122,9 +114,7 @@ export function FeedbackView() {
 
                 <button
                   type="button"
-                  onClick={() =>
-                    navigate({ name: "home" })
-                  }
+                  onClick={() => navigate({ name: "home" })}
                   className="px-4 py-2.5 rounded-xl bg-marine-accent text-marine-base text-sm font-semibold hover:opacity-90 transition"
                 >
                   Back to Home
@@ -144,27 +134,23 @@ export function FeedbackView() {
                 </label>
 
                 <div className="flex items-center gap-2">
-                  {[1, 2, 3, 4, 5].map(
-                    (star) => (
-                      <button
-                        key={star}
-                        type="button"
-                        onClick={() =>
-                          setRating(star)
-                        }
-                        className="p-1 rounded-lg hover:bg-marine-accent/10 transition"
-                        aria-label={`${star} star`}
-                      >
-                        <Star
-                          className={`h-7 w-7 ${
-                            star <= rating
-                              ? "fill-marine-accent text-marine-accent"
-                              : "text-marine-muted"
-                          }`}
-                        />
-                      </button>
-                    )
-                  )}
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setRating(star)}
+                      className="p-1 rounded-lg hover:bg-yellow-400/10 transition"
+                      aria-label={`${star} star`}
+                    >
+                      <Star
+                        className={`h-7 w-7 transition-colors ${
+                          star <= rating
+                            ? "fill-yellow-400 text-yellow-400"
+                            : "text-marine-muted hover:text-yellow-300"
+                        }`}
+                      />
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -224,9 +210,7 @@ export function FeedbackView() {
                 <textarea
                   id="feedback-message"
                   value={message}
-                  onChange={(e) =>
-                    setMessage(e.target.value)
-                  }
+                  onChange={(e) => setMessage(e.target.value)}
                   rows={6}
                   maxLength={1000}
                   placeholder="Tell us what you liked, what went wrong, or what you'd like to see next..."
@@ -254,10 +238,14 @@ export function FeedbackView() {
                   id="feedback-email"
                   type="email"
                   value={email}
-                  onChange={(e) =>
-                    setEmail(e.target.value)
-                  }
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="off"
                   placeholder="your@email.com"
+                  style={{
+                    WebkitBoxShadow:
+                      "0 0 0 1000px rgb(15 23 42) inset",
+                    WebkitTextFillColor: "#e2e8f0",
+                  }}
                   className="w-full rounded-xl bg-marine-base border border-marine-border px-4 py-3 text-sm text-marine-text placeholder:text-marine-muted/60 outline-none focus:border-marine-accent/60 transition"
                 />
               </div>
