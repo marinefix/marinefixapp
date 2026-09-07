@@ -33,73 +33,38 @@ export const onRequestPost: PagesFunction = async ({ request }) => {
       ? data.type
       : "feedback";
 
-    const body = JSON.stringify({
-      type,
-      rating,
-      message,
-      email: data.email?.trim() || "",
-      page: data.page || "home",
-      device: data.device || "unknown",
-    });
-
-    // First request: get Apps Script redirect URL
-    const firstResponse = await fetch(FEEDBACK_WEBHOOK_URL, {
+    const response = await fetch(FEEDBACK_WEBHOOK_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body,
       redirect: "manual",
+      body: JSON.stringify({
+        type,
+        rating,
+        message,
+        email: data.email?.trim() || "",
+        page: data.page || "home",
+        device: data.device || "unknown",
+      }),
     });
 
-    const redirectUrl = firstResponse.headers.get("Location");
-
-    if (!redirectUrl) {
-      console.error(
-        "Apps Script redirect missing:",
-        firstResponse.status
-      );
-
-      return Response.json(
-        { error: "Failed to connect to feedback service" },
-        { status: 502 }
-      );
+    // Google Apps Script ContentService normally returns a 302 redirect.
+    // The doPost() has already executed, so treat any 2xx/3xx as success.
+    if (response.status >= 200 && response.status < 400) {
+      return Response.json({ success: true });
     }
 
-    // Second request: preserve POST after redirect
-    const response = await fetch(redirectUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body,
-    });
+    console.error(
+      "Google Apps Script error:",
+      response.status,
+      await response.text()
+    );
 
-    if (!response.ok) {
-      console.error(
-        "Google Apps Script error:",
-        response.status,
-        await response.text()
-      );
-
-      return Response.json(
-        { error: "Failed to send feedback" },
-        { status: 502 }
-      );
-    }
-
-    const result = (await response.json().catch(() => null)) as {
-      success?: boolean;
-    };
-
-    if (!result || result.success !== true) {
-      return Response.json(
-        { error: "Failed to send feedback" },
-        { status: 502 }
-      );
-    }
-
-    return Response.json({ success: true });
+    return Response.json(
+      { error: "Failed to send feedback" },
+      { status: 502 }
+    );
   } catch (error) {
     console.error("Feedback POST error:", error);
 
