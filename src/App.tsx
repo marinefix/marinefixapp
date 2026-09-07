@@ -18,6 +18,7 @@ import { BookmarksView } from "./views/BookmarksView";
 import { AddGuideView } from "./views/AddGuideView";
 import { AdminPendingView } from "./views/AdminPendingView";
 import { AllGuidesView } from "./views/AllGuidesView";
+import { FeedbackView } from "./views/FeedbackView";
 
 const CATEGORIES_CACHE_KEY = "marinefix_categories_cache";
 const EQUIPMENT_CACHE_KEY = "marinefix_equipment_cache";
@@ -70,11 +71,17 @@ export function App() {
         writeCache(CATEGORIES_CACHE_KEY, data);
       })
       .catch((err) => {
-        console.warn("Categories unavailable, using offline cache:", err);
+        console.warn(
+          "Categories unavailable, using offline cache:",
+          err
+        );
 
         if (active) {
           setCategories(
-            readCache<Category[]>(CATEGORIES_CACHE_KEY, [])
+            readCache<Category[]>(
+              CATEGORIES_CACHE_KEY,
+              []
+            )
           );
         }
       });
@@ -86,11 +93,17 @@ export function App() {
         writeCache(EQUIPMENT_CACHE_KEY, data);
       })
       .catch((err) => {
-        console.warn("Equipment unavailable, using offline cache:", err);
+        console.warn(
+          "Equipment unavailable, using offline cache:",
+          err
+        );
 
         if (active) {
           setEquipment(
-            readCache<Equipment[]>(EQUIPMENT_CACHE_KEY, [])
+            readCache<Equipment[]>(
+              EQUIPMENT_CACHE_KEY,
+              []
+            )
           );
         }
       });
@@ -102,11 +115,17 @@ export function App() {
         writeCache(GUIDES_CACHE_KEY, data);
       })
       .catch((err) => {
-        console.warn("Guides unavailable, using offline cache:", err);
+        console.warn(
+          "Guides unavailable, using offline cache:",
+          err
+        );
 
         if (active) {
           setGuides(
-            readCache<Guide[]>(GUIDES_CACHE_KEY, [])
+            readCache<Guide[]>(
+              GUIDES_CACHE_KEY,
+              []
+            )
           );
         }
       });
@@ -175,7 +194,9 @@ export function App() {
               equipment={equipment}
               guidesCounts={guidesCounts}
               isOpen={mobileMenuOpen}
-              onClose={() => setMobileMenuOpen(false)}
+              onClose={() =>
+                setMobileMenuOpen(false)
+              }
             />
           </div>
         </div>
@@ -186,7 +207,9 @@ export function App() {
             equipment={equipment}
             guidesCounts={guidesCounts}
             isOpen={mobileMenuOpen}
-            onClose={() => setMobileMenuOpen(false)}
+            onClose={() =>
+              setMobileMenuOpen(false)
+            }
           />
         </div>
 
@@ -197,6 +220,10 @@ export function App() {
               equipment={equipment}
               totalGuides={guides.length}
             />
+          )}
+
+          {route.name === "feedback" && (
+            <FeedbackView />
           )}
 
           {route.name === "category" && (
@@ -232,7 +259,9 @@ export function App() {
 
           {route.name === "add-guide" && (
             <AddGuideView
-              equipmentId={(route as any).equipmentId}
+              equipmentId={
+                (route as any).equipmentId
+              }
               categories={categories}
               equipment={equipment}
             />

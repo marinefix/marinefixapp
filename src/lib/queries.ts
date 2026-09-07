@@ -142,11 +142,14 @@ export async function fetchBookmarkIds(): Promise<string[]> {
     const serverIds = res.ids || [];
     const localIds = getLocalBookmarkIds();
 
-    // When online, the server is authoritative. Do not merge stale local IDs,
-    // otherwise a deleted bookmark can reappear after reopening the app.
-    saveLocalBookmarkIds(serverIds);
+    // Keep local-only bookmarks available for offline use.
+    const merged = Array.from(
+      new Set([...serverIds, ...localIds])
+    );
 
-    return serverIds;
+    saveLocalBookmarkIds(merged);
+
+    return merged;
   } catch {
     return getLocalBookmarkIds();
   }
@@ -159,9 +162,10 @@ export async function fetchBookmarkedGuides(): Promise<
     const serverGuides =
       await apiFetch<GuideWithRelations[]>("/api/bookmarks");
 
-    // An empty server list is a valid result when there are no bookmarks.
-    // Do not fall back to offline guides while the API is reachable.
-    return serverGuides || [];
+    // An empty server list is valid when there are no bookmarks.
+    if (serverGuides && serverGuides.length > 0) {
+      return serverGuides;
+    }
   } catch (err) {
     console.warn(
       "Server bookmark fetch failed, using offline guides:",
@@ -325,6 +329,42 @@ export async function rejectGuide(
     body: JSON.stringify({
       id: guideId,
       action: "reject",
+    }),
+  });
+}
+
+// ---------------- FEEDBACK ----------------
+
+export type FeedbackType =
+  | "feedback"
+  | "bug"
+  | "feature";
+
+export async function submitFeedback(input: {
+  type: FeedbackType;
+  rating: number;
+  message: string;
+  email?: string;
+}): Promise<void> {
+  await apiFetch("/api/feedback", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      ...input,
+
+      page:
+        typeof window !== "undefined"
+          ? window.location.pathname
+          : "home",
+
+      device:
+        typeof window !== "undefined" &&
+        (window.location.protocol === "capacitor:" ||
+          window.location.protocol === "file:")
+          ? "android-app"
+          : "web",
     }),
   });
 }
