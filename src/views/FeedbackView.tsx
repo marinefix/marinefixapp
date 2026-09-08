@@ -90,6 +90,7 @@ export function FeedbackView() {
 
           {success ? (
             <div className="py-10 text-center">
+
               <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/10 border border-emerald-500/30">
                 <Send className="h-6 w-6 text-emerald-400" />
               </div>
@@ -104,6 +105,7 @@ export function FeedbackView() {
               </p>
 
               <div className="mt-6 flex justify-center gap-3">
+
                 <button
                   type="button"
                   onClick={() => setSuccess(false)}
@@ -119,6 +121,7 @@ export function FeedbackView() {
                 >
                   Back to Home
                 </button>
+
               </div>
             </div>
           ) : (
@@ -161,6 +164,7 @@ export function FeedbackView() {
                 </label>
 
                 <div className="flex flex-wrap gap-2">
+
                   {[
                     {
                       value: "feedback",
@@ -222,13 +226,13 @@ export function FeedbackView() {
                 </div>
               </div>
 
-              {/* Email */}
+              {/* Mail ID */}
               <div>
                 <label
                   htmlFor="feedback-email"
                   className="block text-xs font-semibold uppercase tracking-wider text-marine-muted mb-3"
                 >
-                  Email
+                  Mail ID
                   <span className="normal-case font-normal ml-1">
                     (optional)
                   </span>
@@ -240,12 +244,7 @@ export function FeedbackView() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   autoComplete="off"
-                  placeholder="your@email.com"
-                  style={{
-                    WebkitBoxShadow:
-                      "0 0 0 1000px rgb(15 23 42) inset",
-                    WebkitTextFillColor: "#e2e8f0",
-                  }}
+                  placeholder="Enter your email address"
                   className="w-full rounded-xl bg-marine-base border border-marine-border px-4 py-3 text-sm text-marine-text placeholder:text-marine-muted/60 outline-none focus:border-marine-accent/60 transition"
                 />
               </div>
@@ -269,6 +268,7 @@ export function FeedbackView() {
                   ? "Submitting..."
                   : "Submit Feedback"}
               </button>
+
             </form>
           )}
         </div>
