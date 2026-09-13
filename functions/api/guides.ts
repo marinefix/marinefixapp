@@ -1,7 +1,125 @@
 interface Env {
   DB: D1Database;
   STORAGE: R2Bucket;
+  ADMIN_SECRET: string;
 }
+
+// ─────────────────────────────────────────────
+// Admin authentication helpers
+// ─────────────────────────────────────────────
+
+async function createToken(secret: string): Promise<string> {
+  const timestamp = Date.now().toString();
+
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+
+  const signature = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(timestamp)
+  );
+
+  const signatureHex = Array.from(new Uint8Array(signature))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+
+  return `${timestamp}.${signatureHex}`;
+}
+
+async function verifyAdminToken(
+  request: Request,
+  secret: string
+): Promise<boolean> {
+  if (!secret) return false;
+
+  const cookieHeader = request.headers.get("Cookie");
+  if (!cookieHeader) return false;
+
+  const match = cookieHeader.match(
+    /(?:^|;\s*)marinefix_admin=([^;]+)/
+  );
+
+  if (!match) return false;
+
+  const token = match[1];
+  const [timestamp, receivedSignature] = token.split(".");
+
+  if (!timestamp || !receivedSignature) return false;
+
+  const tokenTime = Number(timestamp);
+
+  if (!Number.isFinite(tokenTime)) return false;
+
+  // Token valid for 8 hours
+  if (Date.now() - tokenTime > 8 * 60 * 60 * 1000) {
+    return false;
+  }
+
+  if (Date.now() - tokenTime < 0) {
+    return false;
+  }
+
+  try {
+    const key = await crypto.subtle.importKey(
+      "raw",
+      new TextEncoder().encode(secret),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["verify"]
+    );
+
+    const signatureBytes = new Uint8Array(
+      receivedSignature.match(/.{1,2}/g)?.map((byte) => parseInt(byte, 16)) || []
+    );
+
+    if (signatureBytes.length !== 32) {
+      return false;
+    }
+
+    return await crypto.subtle.verify(
+      "HMAC",
+      key,
+      signatureBytes,
+      new TextEncoder().encode(timestamp)
+    );
+  } catch {
+    return false;
+  }
+}
+
+async function requireAdmin(
+  request: Request,
+  env: Env
+): Promise<Response | null> {
+  const isAdmin = await verifyAdminToken(request, env.ADMIN_SECRET);
+
+  if (!isAdmin) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: "Unauthorized",
+      }),
+      {
+        status: 401,
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
+  }
+
+  return null;
+}
+
+// ─────────────────────────────────────────────
+// GET
+// ─────────────────────────────────────────────
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   const url = new URL(context.request.url);
@@ -22,7 +140,19 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
         .bind(guideId)
         .first();
 
-      if (!guide) return new Response("Guide not found", { status: 404 });
+      if (!guide) {
+        return new Response("Guide not found", { status: 404 });
+      }
+
+      // Pending guides require admin authentication.
+      if ((guide as any).is_approved !== 1) {
+        const authError = await requireAdmin(
+          context.request,
+          context.env
+        );
+
+        if (authError) return authError;
+      }
 
       const { results: steps } = await context.env.DB.prepare(
         "SELECT * FROM guide_steps WHERE guide_id = ? ORDER BY step_number ASC"
@@ -38,12 +168,27 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
       const formatted = {
         ...guide,
-        equipment: typeof guide.equipment === "string" ? JSON.parse(guide.equipment) : guide.equipment,
-        safety_ppe: guide.safety_ppe ? (typeof guide.safety_ppe === "string" ? JSON.parse(guide.safety_ppe) : guide.safety_ppe) : [],
-        tools_required: guide.tools_required ? (typeof guide.tools_required === "string" ? JSON.parse(guide.tools_required) : guide.tools_required) : [],
+        equipment:
+          typeof guide.equipment === "string"
+            ? JSON.parse(guide.equipment)
+            : guide.equipment,
+        safety_ppe: guide.safety_ppe
+          ? typeof guide.safety_ppe === "string"
+            ? JSON.parse(guide.safety_ppe)
+            : guide.safety_ppe
+          : [],
+        tools_required: guide.tools_required
+          ? typeof guide.tools_required === "string"
+            ? JSON.parse(guide.tools_required)
+            : guide.tools_required
+          : [],
         steps: (steps || []).map((st: any) => ({
           ...st,
-          images: st.images ? (typeof st.images === "string" ? JSON.parse(st.images) : st.images) : [],
+          images: st.images
+            ? typeof st.images === "string"
+              ? JSON.parse(st.images)
+              : st.images
+            : [],
         })),
         images: images || [],
       };
@@ -51,8 +196,15 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
       return Response.json(formatted);
     }
 
-    // 2. Admin Pending Guides list (Strictly pending only)
+    // 2. Admin Pending Guides list
     if (pendingOnly) {
+      const authError = await requireAdmin(
+        context.request,
+        context.env
+      );
+
+      if (authError) return authError;
+
       const { results } = await context.env.DB.prepare(
         `SELECT g.*, 
                 json_object('id', e.id, 'name', e.name, 'slug', e.slug) as equipment 
@@ -64,9 +216,20 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
       const formatted = (results || []).map((g: any) => ({
         ...g,
-        equipment: typeof g.equipment === "string" ? JSON.parse(g.equipment) : g.equipment,
-        safety_ppe: g.safety_ppe ? (typeof g.safety_ppe === "string" ? JSON.parse(g.safety_ppe) : g.safety_ppe) : [],
-        tools_required: g.tools_required ? (typeof g.tools_required === "string" ? JSON.parse(g.tools_required) : g.tools_required) : [],
+        equipment:
+          typeof g.equipment === "string"
+            ? JSON.parse(g.equipment)
+            : g.equipment,
+        safety_ppe: g.safety_ppe
+          ? typeof g.safety_ppe === "string"
+            ? JSON.parse(g.safety_ppe)
+            : g.safety_ppe
+          : [],
+        tools_required: g.tools_required
+          ? typeof g.tools_required === "string"
+            ? JSON.parse(g.tools_required)
+            : g.tools_required
+          : [],
       }));
 
       return Response.json(formatted);
@@ -82,8 +245,16 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
       const formatted = (results || []).map((g: any) => ({
         ...g,
-        safety_ppe: g.safety_ppe ? (typeof g.safety_ppe === "string" ? JSON.parse(g.safety_ppe) : g.safety_ppe) : [],
-        tools_required: g.tools_required ? (typeof g.tools_required === "string" ? JSON.parse(g.tools_required) : g.tools_required) : [],
+        safety_ppe: g.safety_ppe
+          ? typeof g.safety_ppe === "string"
+            ? JSON.parse(g.safety_ppe)
+            : g.safety_ppe
+          : [],
+        tools_required: g.tools_required
+          ? typeof g.tools_required === "string"
+            ? JSON.parse(g.tools_required)
+            : g.tools_required
+          : [],
       }));
 
       return Response.json(formatted);
@@ -101,9 +272,20 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
     const formatted = (results || []).map((g: any) => ({
       ...g,
-      equipment: typeof g.equipment === "string" ? JSON.parse(g.equipment) : g.equipment,
-      safety_ppe: g.safety_ppe ? (typeof g.safety_ppe === "string" ? JSON.parse(g.safety_ppe) : g.safety_ppe) : [],
-      tools_required: g.tools_required ? (typeof g.tools_required === "string" ? JSON.parse(g.tools_required) : g.tools_required) : [],
+      equipment:
+        typeof g.equipment === "string"
+          ? JSON.parse(g.equipment)
+          : g.equipment,
+      safety_ppe: g.safety_ppe
+        ? typeof g.safety_ppe === "string"
+          ? JSON.parse(g.safety_ppe)
+          : g.safety_ppe
+        : [],
+      tools_required: g.tools_required
+        ? typeof g.tools_required === "string"
+          ? JSON.parse(g.tools_required)
+          : g.tools_required
+        : [],
     }));
 
     return Response.json(formatted);
@@ -112,7 +294,10 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   }
 };
 
+// ─────────────────────────────────────────────
 // Guide Submit (POST)
+// ─────────────────────────────────────────────
+
 export const onRequestPost: PagesFunction<Env> = async (context) => {
   try {
     const data = (await context.request.json()) as any;
@@ -144,6 +329,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     if (data.steps && Array.isArray(data.steps)) {
       for (let i = 0; i < data.steps.length; i++) {
         const step = data.steps[i];
+
         await context.env.DB.prepare(
           `INSERT INTO guide_steps (
             id, guide_id, step_number, title, instruction, warning, images
@@ -166,13 +352,20 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       for (let i = 0; i < data.image_urls.length; i++) {
         const img = data.image_urls[i];
         const imgUrl = typeof img === "string" ? img : img.url;
+
         if (imgUrl) {
           await context.env.DB.prepare(
             `INSERT INTO guide_images (
               id, guide_id, caption, url, order_index
             ) VALUES (?, ?, ?, ?, ?)`
           )
-            .bind(crypto.randomUUID(), guideId, img.name || img.caption || null, imgUrl, i)
+            .bind(
+              crypto.randomUUID(),
+              guideId,
+              img.name || img.caption || null,
+              imgUrl,
+              i
+            )
             .run();
         }
       }
@@ -185,20 +378,33 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   }
 };
 
-// Helper function to cleanup R2 storage images for a guide
-async function deleteGuideR2Images(context: EventContext<Env, any, any>, guideId: string) {
+// ─────────────────────────────────────────────
+// Helper function to cleanup R2 storage images
+// ─────────────────────────────────────────────
+
+async function deleteGuideR2Images(
+  context: EventContext<Env, any, any>,
+  guideId: string
+) {
   try {
     if (!context.env.STORAGE) return;
 
     // 1. Fetch images from guide_images table
     const { results: images } = await context.env.DB.prepare(
       "SELECT url FROM guide_images WHERE guide_id = ?"
-    ).bind(guideId).all();
+    )
+      .bind(guideId)
+      .all();
 
-    for (const img of (images || [])) {
+    for (const img of images || []) {
       try {
-        const urlObj = new URL((img as any).url, "http://localhost");
+        const urlObj = new URL(
+          (img as any).url,
+          "http://localhost"
+        );
+
         const key = urlObj.searchParams.get("key");
+
         if (key) {
           await context.env.STORAGE.delete(key);
         }
@@ -210,16 +416,30 @@ async function deleteGuideR2Images(context: EventContext<Env, any, any>, guideId
     // 2. Fetch step images from guide_steps table
     const { results: steps } = await context.env.DB.prepare(
       "SELECT images FROM guide_steps WHERE guide_id = ?"
-    ).bind(guideId).all();
+    )
+      .bind(guideId)
+      .all();
 
-    for (const step of (steps || [])) {
+    for (const step of steps || []) {
       try {
-        const imgs = JSON.parse((step as any).images || "[]");
+        const imgs = JSON.parse(
+          (step as any).images || "[]"
+        );
+
         for (const imgItem of imgs) {
-          const imgUrl = typeof imgItem === "string" ? imgItem : imgItem.url;
+          const imgUrl =
+            typeof imgItem === "string"
+              ? imgItem
+              : imgItem.url;
+
           if (imgUrl) {
-            const urlObj = new URL(imgUrl, "http://localhost");
+            const urlObj = new URL(
+              imgUrl,
+              "http://localhost"
+            );
+
             const key = urlObj.searchParams.get("key");
+
             if (key) {
               await context.env.STORAGE.delete(key);
             }
@@ -234,12 +454,28 @@ async function deleteGuideR2Images(context: EventContext<Env, any, any>, guideId
   }
 }
 
+// ─────────────────────────────────────────────
 // Admin Approve / Reject (PATCH)
+// ─────────────────────────────────────────────
+
 export const onRequestPatch: PagesFunction<Env> = async (context) => {
   try {
-    const { id, action } = (await context.request.json()) as any;
+    // Backend admin verification
+    const authError = await requireAdmin(
+      context.request,
+      context.env
+    );
+
+    if (authError) return authError;
+
+    const { id, action } =
+      (await context.request.json()) as any;
+
     if (!id || !action) {
-      return new Response("Missing id or action", { status: 400 });
+      return new Response(
+        "Missing id or action",
+        { status: 400 }
+      );
     }
 
     if (action === "approve") {
@@ -248,7 +484,11 @@ export const onRequestPatch: PagesFunction<Env> = async (context) => {
       )
         .bind(id)
         .run();
-      return Response.json({ success: true, message: "Guide approved" });
+
+      return Response.json({
+        success: true,
+        message: "Guide approved",
+      });
     }
 
     if (action === "reject") {
@@ -256,42 +496,112 @@ export const onRequestPatch: PagesFunction<Env> = async (context) => {
       await deleteGuideR2Images(context, id);
 
       // Clean up D1 database records
-      await context.env.DB.prepare("DELETE FROM guide_steps WHERE guide_id = ?").bind(id).run();
-      await context.env.DB.prepare("DELETE FROM guide_images WHERE guide_id = ?").bind(id).run();
-      await context.env.DB.prepare("DELETE FROM bookmarks WHERE guide_id = ?").bind(id).run();
-      await context.env.DB.prepare("DELETE FROM guides WHERE id = ?").bind(id).run();
+      await context.env.DB.prepare(
+        "DELETE FROM guide_steps WHERE guide_id = ?"
+      )
+        .bind(id)
+        .run();
 
-      return Response.json({ success: true, message: "Guide rejected and permanently deleted from database & storage" });
+      await context.env.DB.prepare(
+        "DELETE FROM guide_images WHERE guide_id = ?"
+      )
+        .bind(id)
+        .run();
+
+      await context.env.DB.prepare(
+        "DELETE FROM bookmarks WHERE guide_id = ?"
+      )
+        .bind(id)
+        .run();
+
+      await context.env.DB.prepare(
+        "DELETE FROM guides WHERE id = ?"
+      )
+        .bind(id)
+        .run();
+
+      return Response.json({
+        success: true,
+        message:
+          "Guide rejected and permanently deleted from database & storage",
+      });
     }
 
-    return new Response("Invalid action", { status: 400 });
+    return new Response(
+      "Invalid action",
+      { status: 400 }
+    );
   } catch (err: any) {
-    return new Response(err.message, { status: 500 });
+    return new Response(
+      err.message,
+      { status: 500 }
+    );
   }
 };
 
+// ─────────────────────────────────────────────
 // Permanent Admin Delete (DELETE)
+// ─────────────────────────────────────────────
+
 export const onRequestDelete: PagesFunction<Env> = async (context) => {
   try {
+    // Backend admin verification
+    const authError = await requireAdmin(
+      context.request,
+      context.env
+    );
+
+    if (authError) return authError;
+
     const url = new URL(context.request.url);
     const guideId = url.searchParams.get("id");
 
     if (!guideId) {
-      return new Response("Missing guide ID", { status: 400 });
+      return new Response(
+        "Missing guide ID",
+        { status: 400 }
+      );
     }
 
     // Clean up R2 storage files first
     await deleteGuideR2Images(context, guideId);
 
     // Clean up D1 database records
-    await context.env.DB.prepare("DELETE FROM guide_steps WHERE guide_id = ?").bind(guideId).run();
-    await context.env.DB.prepare("DELETE FROM guide_images WHERE guide_id = ?").bind(guideId).run();
-    await context.env.DB.prepare("DELETE FROM bookmarks WHERE guide_id = ?").bind(guideId).run();
-    await context.env.DB.prepare("DELETE FROM guides WHERE id = ?").bind(guideId).run();
+    await context.env.DB.prepare(
+      "DELETE FROM guide_steps WHERE guide_id = ?"
+    )
+      .bind(guideId)
+      .run();
 
-    return Response.json({ success: true, message: "Guide deleted permanently from database & storage" });
+    await context.env.DB.prepare(
+      "DELETE FROM guide_images WHERE guide_id = ?"
+    )
+      .bind(guideId)
+      .run();
+
+    await context.env.DB.prepare(
+      "DELETE FROM bookmarks WHERE guide_id = ?"
+    )
+      .bind(guideId)
+      .run();
+
+    await context.env.DB.prepare(
+      "DELETE FROM guides WHERE id = ?"
+    )
+      .bind(guideId)
+      .run();
+
+    return Response.json({
+      success: true,
+      message:
+        "Guide deleted permanently from database & storage",
+    });
   } catch (err: any) {
     console.error("Delete error:", err);
-    return new Response(err.message, { status: 500 });
+
+    return new Response(
+      err.message,
+      { status: 500 }
+    );
   }
 };

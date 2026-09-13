@@ -43,25 +43,12 @@ export type GuideStep = {
   warning: string | null;
 };
 
-export type GuideAttachment = {
-  url: string;
-  name?: string;
-  isPdf?: boolean;
-  isVideo?: boolean;
-  isWord?: boolean;
-  mimeType?: string;
-  size?: number;
-};
-
 export type GuideImage = {
   id: string;
   guide_id: string;
   caption: string | null;
   url: string;
   order_index: number;
-  isPdf?: boolean;
-  isVideo?: boolean;
-  isWord?: boolean;
 };
 
 export type GuideWithRelations = Guide & {

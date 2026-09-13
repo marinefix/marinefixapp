@@ -362,7 +362,7 @@ export async function uploadImage(
 
   if (!res.ok) {
     throw new Error(
-      "Failed to upload file to R2"
+      "Failed to upload image to R2"
     );
   }
 
