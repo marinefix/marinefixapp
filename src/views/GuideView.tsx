@@ -15,6 +15,7 @@ import {
   ExternalLink,
   Trash2,
   Printer,
+  Video,
 } from "lucide-react";
 import type { GuideWithRelations } from "../types";
 import { fetchGuideById, addBookmark, removeBookmark } from "../lib/queries";
@@ -532,21 +533,13 @@ export function GuideView({
   const parseAttachment = (val: any) => {
     let url = "";
     let isPdf = false;
+    let isVideo = false;
+    let isWord = false;
     let name = "";
 
-    if (
-      typeof val === "string" &&
-      val.trim()
-    ) {
+    if (typeof val === "string" && val.trim()) {
       url = val.trim();
-
-      isPdf =
-        url.toLowerCase().includes(".pdf") ||
-        url.startsWith("data:application/pdf");
-    } else if (
-      val &&
-      typeof val === "object"
-    ) {
+    } else if (val && typeof val === "object") {
       url =
         val.url ||
         val.image_url ||
@@ -554,22 +547,38 @@ export function GuideView({
         val.publicUrl ||
         "";
 
-      isPdf =
-        Boolean(val.isPdf) ||
-        url.toLowerCase().includes(".pdf") ||
-        url.startsWith("data:application/pdf");
-
-      name =
-        val.name ||
-        val.caption ||
-        "";
+      isPdf = Boolean(val.isPdf);
+      isVideo = Boolean(val.isVideo);
+      isWord = Boolean(val.isWord);
+      name = val.name || val.caption || "";
     }
+
+    const lowerUrl = String(url).toLowerCase();
+    const lowerName = String(name).toLowerCase();
+    const combined = `${lowerUrl} ${lowerName}`;
+
+    isPdf =
+      isPdf ||
+      combined.includes(".pdf") ||
+      lowerUrl.startsWith("data:application/pdf");
+
+    isVideo =
+      isVideo ||
+      /\.(webm|mp4|m4v|mov)(?:[?#]|$)/i.test(lowerUrl) ||
+      lowerUrl.startsWith("data:video/");
+
+    isWord =
+      isWord ||
+      /\.(doc|docx)(?:[?#]|$)/i.test(lowerUrl) ||
+      /\.(doc|docx)$/i.test(lowerName);
 
     url = resolveRemoteUrl(url);
 
     return {
       url,
       isPdf,
+      isVideo,
+      isWord,
       name,
     };
   };
@@ -645,6 +654,8 @@ export function GuideView({
           (att: any) => {
             if (
               !att.isPdf &&
+              !att.isVideo &&
+              !att.isWord &&
               att.url &&
               !lightboxItems.some(
                 (x) =>
@@ -668,6 +679,8 @@ export function GuideView({
     (att: any) => {
       if (
         !att.isPdf &&
+        !att.isVideo &&
+        !att.isWord &&
         att.url &&
         !lightboxItems.some(
           (x) =>
@@ -1141,57 +1154,47 @@ export function GuideView({
 
                                     {parsed.isPdf ? (
                                       <div className="flex items-center justify-between w-full">
-
                                         <div className="flex items-center gap-2 min-w-0">
-
                                           <FileText className="h-5 w-5 text-rose-400 shrink-0" />
-
-                                          <span
-                                            className="text-xs font-semibold text-marine-text print:text-black truncate max-w-[140px]"
-                                            title={
-                                              parsed.name
-                                            }
-                                          >
-                                            {parsed.name ||
-                                              `Step ${stepNum} Document`}
+                                          <span className="text-xs font-semibold text-marine-text print:text-black truncate max-w-[140px]" title={parsed.name}>
+                                            {parsed.name || `Step ${stepNum} PDF`}
                                           </span>
                                         </div>
-
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            openPdf(
-                                              parsed.url,
-                                              parsed.name ||
-                                                `Step ${stepNum} Document`
-                                            )
-                                          }
-                                          className="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-500/20 text-rose-300 print:text-rose-700 hover:bg-rose-500/30 border border-rose-500/30 rounded-lg text-[11px] font-bold transition shrink-0"
-                                        >
+                                        <button type="button" onClick={() => openPdf(parsed.url, parsed.name || `Step ${stepNum} PDF`)} className="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-500/20 text-rose-300 print:text-rose-700 hover:bg-rose-500/30 border border-rose-500/30 rounded-lg text-[11px] font-bold transition shrink-0">
                                           <ExternalLink className="h-3 w-3" />
                                           View PDF
                                         </button>
                                       </div>
-                                    ) : (
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          openLightboxByUrl(
-                                            parsed.url
-                                          )
-                                        }
-                                        className="group relative w-full flex items-center justify-center bg-black/60 rounded-lg overflow-hidden border border-marine-border hover:border-marine-accent/60 transition cursor-pointer p-1 min-h-[160px]"
-                                        title="Click to Zoom Fullscreen"
-                                      >
-                                        <img
-                                          src={displayAttachmentUrl(
-                                            parsed.url
-                                          )}
-                                          alt={`Step ${stepNum}`}
-                                          loading="lazy"
-                                          decoding="async"
-                                          className="max-h-48 w-full object-contain rounded group-hover:scale-105 transition-transform duration-300"
+                                    ) : parsed.isVideo ? (
+                                      <div className="w-full">
+                                        <video
+                                          src={displayAttachmentUrl(parsed.url)}
+                                          controls
+                                          playsInline
+                                          preload="metadata"
+                                          className="w-full max-h-64 rounded-lg bg-black object-contain"
                                         />
+                                        <div className="mt-2 flex items-center gap-1.5 text-[11px] font-semibold text-sky-300 truncate" title={parsed.name}>
+                                          <Video className="h-3.5 w-3.5 shrink-0" />
+                                          <span className="truncate">{parsed.name || `Step ${stepNum} Video`}</span>
+                                        </div>
+                                      </div>
+                                    ) : parsed.isWord ? (
+                                      <div className="flex items-center justify-between w-full gap-3">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                          <FileText className="h-5 w-5 text-blue-400 shrink-0" />
+                                          <span className="text-xs font-semibold text-marine-text print:text-black truncate max-w-[160px]" title={parsed.name}>
+                                            {parsed.name || `Step ${stepNum} Word Document`}
+                                          </span>
+                                        </div>
+                                        <a href={displayAttachmentUrl(parsed.url)} target="_blank" rel="noreferrer" download className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-500/20 text-blue-300 print:text-blue-700 hover:bg-blue-500/30 border border-blue-500/30 rounded-lg text-[11px] font-bold transition shrink-0">
+                                          <ExternalLink className="h-3 w-3" />
+                                          Open Word
+                                        </a>
+                                      </div>
+                                    ) : (
+                                      <button type="button" onClick={() => openLightboxByUrl(parsed.url)} className="group relative w-full flex items-center justify-center bg-black/60 rounded-lg overflow-hidden border border-marine-border hover:border-marine-accent/60 transition cursor-pointer p-1 min-h-[160px]" title="Click to Zoom Fullscreen">
+                                        <img src={displayAttachmentUrl(parsed.url)} alt={`Step ${stepNum}`} loading="lazy" decoding="async" className="max-h-48 w-full object-contain rounded group-hover:scale-105 transition-transform duration-300" />
                                       </button>
                                     )}
                                   </div>
@@ -1235,61 +1238,41 @@ export function GuideView({
 
                     {item.isPdf ? (
                       <div className="flex flex-col items-center justify-center text-center space-y-2 p-4 w-full">
-
                         <div className="p-3 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20">
                           <FileText className="h-8 w-8" />
                         </div>
-
-                        <div>
-                          <span
-                            className="text-xs font-bold text-marine-text print:text-black block truncate max-w-[200px]"
-                            title={
-                              item.name
-                            }
-                          >
-                            {item.name ||
-                              "PDF Schematic Document"}
-                          </span>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            openPdf(
-                              item.url,
-                              item.name ||
-                                "PDF Schematic Document"
-                            )
-                          }
-                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-rose-500/20 text-rose-300 print:text-rose-700 hover:bg-rose-500/30 border border-rose-500/30 rounded-lg text-xs font-bold transition"
-                        >
+                        <span className="text-xs font-bold text-marine-text print:text-black block truncate max-w-[220px]" title={item.name}>
+                          {item.name || "PDF Schematic Document"}
+                        </span>
+                        <button type="button" onClick={() => openPdf(item.url, item.name || "PDF Schematic Document")} className="inline-flex items-center gap-1 px-3 py-1.5 bg-rose-500/20 text-rose-300 print:text-rose-700 hover:bg-rose-500/30 border border-rose-500/30 rounded-lg text-xs font-bold transition">
                           <ExternalLink className="h-3.5 w-3.5" />
                           View PDF
                         </button>
                       </div>
+                    ) : item.isVideo ? (
+                      <div className="w-full">
+                        <video src={displayAttachmentUrl(item.url)} controls playsInline preload="metadata" className="w-full max-h-80 rounded-lg bg-black object-contain" />
+                        <div className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-sky-300 truncate" title={item.name}>
+                          <Video className="h-4 w-4 shrink-0" />
+                          <span className="truncate">{item.name || "Guide Video"}</span>
+                        </div>
+                      </div>
+                    ) : item.isWord ? (
+                      <div className="flex flex-col items-center justify-center text-center space-y-2 p-5 w-full">
+                        <div className="p-3 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                          <FileText className="h-8 w-8" />
+                        </div>
+                        <span className="text-xs font-bold text-marine-text print:text-black block truncate max-w-[240px]" title={item.name}>
+                          {item.name || "Word Document"}
+                        </span>
+                        <a href={displayAttachmentUrl(item.url)} target="_blank" rel="noreferrer" download className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-500/20 text-blue-300 print:text-blue-700 hover:bg-blue-500/30 border border-blue-500/30 rounded-lg text-xs font-bold transition">
+                          <ExternalLink className="h-3.5 w-3.5" />
+                          Open Word
+                        </a>
+                      </div>
                     ) : (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          openLightboxByUrl(
-                            item.url
-                          )
-                        }
-                        className="group relative rounded-lg overflow-hidden border border-marine-border hover:border-marine-accent/60 transition w-full min-h-[180px] bg-black/50 cursor-pointer flex items-center justify-center"
-                        title="Click to Zoom Fullscreen"
-                      >
-                        <img
-                          src={displayAttachmentUrl(
-                            item.url
-                          )}
-                          alt={
-                            item.name ||
-                            "Schematic"
-                          }
-                          loading="lazy"
-                          decoding="async"
-                          className="max-h-60 w-full object-contain opacity-90 group-hover:opacity-100 group-hover:scale-105 transition-all duration-300"
-                        />
+                      <button type="button" onClick={() => openLightboxByUrl(item.url)} className="group relative rounded-lg overflow-hidden border border-marine-border hover:border-marine-accent/60 transition w-full min-h-[180px] bg-black/50 cursor-pointer flex items-center justify-center" title="Click to Zoom Fullscreen">
+                        <img src={displayAttachmentUrl(item.url)} alt={item.name || "Schematic"} loading="lazy" decoding="async" className="max-h-60 w-full object-contain opacity-90 group-hover:opacity-100 group-hover:scale-105 transition-all duration-300" />
                       </button>
                     )}
                   </div>

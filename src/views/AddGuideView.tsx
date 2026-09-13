@@ -15,6 +15,7 @@ import {
   ChevronUp,
   ChevronDown,
   PlusCircle,
+  Video,
 } from "lucide-react";
 import type { Category, Equipment } from "../types";
 import { createGuide, uploadImage } from "../lib/queries";
@@ -30,6 +31,8 @@ type StepUploadItem = {
   file: File;
   previewUrl: string;
   isPdf: boolean;
+  isVideo: boolean;
+  isWord: boolean;
 };
 
 type StepForm = {
@@ -43,6 +46,8 @@ type UploadItem = {
   file: File;
   previewUrl: string;
   isPdf: boolean;
+  isVideo: boolean;
+  isWord: boolean;
 };
 
 const DEFAULT_PPE = [
@@ -51,12 +56,8 @@ const DEFAULT_PPE = [
   "FR coveralls",
 ];
 
-// Helper: Compress & Convert Images to WebP (10MB -> ~150KB) on the browser side
+// Helper: Compress images to WebP in-browser.
 async function compressImageFile(file: File, maxWidth = 1280, quality = 0.75): Promise<File> {
-  if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
-    return file;
-  }
-
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -92,12 +93,14 @@ async function compressImageFile(file: File, maxWidth = 1280, quality = 0.75): P
               resolve(file);
               return;
             }
+
             const cleanName = file.name.replace(/\.[^/.]+$/, "") + ".webp";
-            const compressedFile = new File([blob], cleanName, {
-              type: "image/webp",
-              lastModified: Date.now(),
-            });
-            resolve(compressedFile);
+            resolve(
+              new File([blob], cleanName, {
+                type: "image/webp",
+                lastModified: Date.now(),
+              })
+            );
           },
           "image/webp",
           quality
@@ -109,6 +112,180 @@ async function compressImageFile(file: File, maxWidth = 1280, quality = 0.75): P
 
     reader.onerror = () => resolve(file);
   });
+}
+
+const VIDEO_INPUT_MAX_BYTES = 25 * 1024 * 1024;
+
+function isPdfFile(file: File): boolean {
+  return file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+}
+
+function isVideoFile(file: File): boolean {
+  return file.type.startsWith("video/") || /\.(mp4|mov|m4v|webm|avi|mkv)$/i.test(file.name);
+}
+
+function isWordFile(file: File): boolean {
+  return (
+    file.type === "application/msword" ||
+    file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    /\.(doc|docx)$/i.test(file.name)
+  );
+}
+
+function getVideoMimeType(): string {
+  const candidates = [
+    "video/webm;codecs=vp9,opus",
+    "video/webm;codecs=vp8,opus",
+    "video/webm",
+  ];
+
+  return candidates.find((type) => MediaRecorder.isTypeSupported(type)) || "";
+}
+
+function waitForVideoMetadata(video: HTMLVideoElement): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (video.readyState >= 1 && Number.isFinite(video.duration)) {
+      resolve();
+      return;
+    }
+
+    const onLoaded = () => {
+      cleanup();
+      resolve();
+    };
+    const onError = () => {
+      cleanup();
+      reject(new Error("Unable to read the selected video."));
+    };
+    const cleanup = () => {
+      video.removeEventListener("loadedmetadata", onLoaded);
+      video.removeEventListener("error", onError);
+    };
+
+    video.addEventListener("loadedmetadata", onLoaded);
+    video.addEventListener("error", onError);
+  });
+}
+
+async function recordCompressedVideo(file: File, targetRatio: number, mimeType: string): Promise<File> {
+  const sourceUrl = URL.createObjectURL(file);
+
+  try {
+    const video = document.createElement("video");
+    video.src = sourceUrl;
+    video.preload = "auto";
+    video.playsInline = true;
+    video.muted = false;
+    video.volume = 0;
+
+    await waitForVideoMetadata(video);
+
+    const duration = video.duration;
+    if (!Number.isFinite(duration) || duration <= 0) {
+      throw new Error("Unable to determine video duration.");
+    }
+
+    if (!("captureStream" in video)) {
+      throw new Error("This device/browser cannot compress video in the app.");
+    }
+
+    const captureStream = (video as HTMLVideoElement & { captureStream: () => MediaStream }).captureStream();
+    const targetBits = file.size * 8 * targetRatio;
+    const audioBitsPerSecond = captureStream.getAudioTracks().length > 0 ? 96000 : 0;
+    const videoBitsPerSecond = Math.max(180000, Math.floor(targetBits / duration - audioBitsPerSecond));
+
+    const recorder = new MediaRecorder(captureStream, {
+      mimeType,
+      videoBitsPerSecond,
+      audioBitsPerSecond,
+    });
+
+    const chunks: Blob[] = [];
+
+    const output = await new Promise<Blob>((resolve, reject) => {
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunks.push(event.data);
+      };
+      recorder.onerror = () => reject(new Error("Video compression failed."));
+      recorder.onstop = () => resolve(new Blob(chunks, { type: mimeType.split(";")[0] }));
+
+      video.onended = () => {
+        if (recorder.state !== "inactive") recorder.stop();
+        captureStream.getTracks().forEach((track) => track.stop());
+      };
+
+      recorder.start(250);
+      void video.play().catch(() => reject(new Error("Unable to start video compression.")));
+    });
+
+    const cleanName = file.name.replace(/\.[^/.]+$/, "") + ".webm";
+    return new File([output], cleanName, {
+      type: "video/webm",
+      lastModified: Date.now(),
+    });
+  } finally {
+    URL.revokeObjectURL(sourceUrl);
+  }
+}
+
+async function compressVideoFile(file: File): Promise<File> {
+  if (file.size > VIDEO_INPUT_MAX_BYTES) {
+    throw new Error("Each video must be 25 MB or smaller before compression.");
+  }
+
+  if (typeof MediaRecorder === "undefined") {
+    throw new Error("Video compression is not supported on this device/browser.");
+  }
+
+  const mimeType = getVideoMimeType();
+  if (!mimeType) {
+    throw new Error("This device/browser cannot create a compressed video.");
+  }
+
+  // Target roughly 55% of the original size, matching the requested examples.
+  // If the encoder does not reduce enough, retry at a lower bitrate.
+  const ratios = [0.55, 0.45, 0.35];
+  let lastResult: File | null = null;
+
+  for (const ratio of ratios) {
+    const result = await recordCompressedVideo(file, ratio, mimeType);
+    lastResult = result;
+
+    if (result.size < file.size) {
+      return result;
+    }
+  }
+
+  if (lastResult && lastResult.size < file.size) return lastResult;
+  throw new Error("Unable to reduce this video size. Please try a shorter video.");
+}
+
+function getFileKind(file: File) {
+  return {
+    isPdf: isPdfFile(file),
+    isVideo: isVideoFile(file),
+    isWord: isWordFile(file),
+  };
+}
+
+async function processGuideFile(file: File) {
+  const { isPdf, isVideo, isWord } = getFileKind(file);
+
+  if (!isPdf && !isVideo && !isWord && !file.type.startsWith("image/")) {
+    throw new Error("Only images, videos, PDF, DOC and DOCX files are allowed.");
+  }
+
+  if (isVideo) {
+    const compressed = await compressVideoFile(file);
+    return { file: compressed, previewUrl: URL.createObjectURL(compressed), isPdf: false, isVideo: true, isWord: false };
+  }
+
+  if (isPdf || isWord) {
+    return { file, previewUrl: URL.createObjectURL(file), isPdf, isVideo: false, isWord };
+  }
+
+  const compressed = await compressImageFile(file);
+  return { file: compressed, previewUrl: URL.createObjectURL(compressed), isPdf: false, isVideo: false, isWord: false };
 }
 
 export function AddGuideView({
@@ -221,17 +398,10 @@ export function AddGuideView({
     const files = Array.from(e.target.files);
 
     try {
+      setError(null);
       setCompressing(true);
       const processedItems: StepUploadItem[] = await Promise.all(
-        files.map(async (file) => {
-          const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
-          const finalFile = isPdf ? file : await compressImageFile(file);
-          return {
-            file: finalFile,
-            previewUrl: URL.createObjectURL(finalFile),
-            isPdf,
-          };
-        })
+        files.map((file) => processGuideFile(file))
       );
 
       setSteps((prevSteps) =>
@@ -242,7 +412,8 @@ export function AddGuideView({
         )
       );
     } catch (err) {
-      console.error("Image processing error:", err);
+      console.error("File processing error:", err);
+      setError(err instanceof Error ? err.message : "Unable to process the selected file.");
     } finally {
       setCompressing(false);
       e.target.value = "";
@@ -267,22 +438,16 @@ export function AddGuideView({
     const files = Array.from(e.target.files);
 
     try {
+      setError(null);
       setCompressing(true);
       const processedItems: UploadItem[] = await Promise.all(
-        files.map(async (file) => {
-          const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
-          const finalFile = isPdf ? file : await compressImageFile(file);
-          return {
-            file: finalFile,
-            previewUrl: URL.createObjectURL(finalFile),
-            isPdf,
-          };
-        })
+        files.map((file) => processGuideFile(file))
       );
 
       setUploadItems((prev) => [...prev, ...processedItems]);
     } catch (err) {
-      console.error("Image processing error:", err);
+      console.error("File processing error:", err);
+      setError(err instanceof Error ? err.message : "Unable to process the selected file.");
     } finally {
       setCompressing(false);
       e.target.value = "";
@@ -342,7 +507,7 @@ export function AddGuideView({
           continue;
         }
 
-        const stepAttachments: { url: string; isPdf: boolean; name: string }[] = [];
+        const stepAttachments: { url: string; isPdf: boolean; isVideo: boolean; isWord: boolean; name: string }[] = [];
 
         if (step.uploadItems.length > 0) {
           for (const item of step.uploadItems) {
@@ -352,11 +517,13 @@ export function AddGuideView({
               const attachmentObj = {
                 url: uploadedUrl,
                 isPdf: item.isPdf,
+                isVideo: item.isVideo,
+                isWord: item.isWord,
                 name: item.file.name,
               };
               stepAttachments.push(attachmentObj);
 
-              if (!finalPrimaryImageUrl && !item.isPdf) {
+              if (!finalPrimaryImageUrl && !item.isPdf && !item.isVideo && !item.isWord) {
                 finalPrimaryImageUrl = uploadedUrl;
               }
             }
@@ -373,7 +540,7 @@ export function AddGuideView({
       }
 
       // 2. Upload Overall Guide Files (Only from bottom Overall section)
-      const overallUploadedUrls: { url: string; isPdf?: boolean; name?: string }[] = [];
+      const overallUploadedUrls: { url: string; isPdf?: boolean; isVideo?: boolean; isWord?: boolean; name?: string }[] = [];
       if (uploadItems.length > 0) {
         for (const item of uploadItems) {
           const uploadedUrl = await uploadImage(item.file);
@@ -386,7 +553,7 @@ export function AddGuideView({
             };
             overallUploadedUrls.push(attachmentObj);
 
-            if (!finalPrimaryImageUrl && !item.isPdf) {
+            if (!finalPrimaryImageUrl && !item.isPdf && !item.isVideo && !item.isWord) {
               finalPrimaryImageUrl = uploadedUrl;
             }
           }
@@ -750,11 +917,11 @@ export function AddGuideView({
                       <span>
                         {compressing
                           ? "Optimizing & Compressing..."
-                          : `Upload Photo / PDF Drawing for Step ${i + 1}`}
+                          : `Upload Photo / Video / PDF / Word for Step ${i + 1}`}
                       </span>
                       <input
                         type="file"
-                        accept="image/*,application/pdf"
+                        accept="image/*,video/*,.pdf,.doc,.docx"
                         multiple
                         disabled={compressing}
                         onChange={(e) => handleStepFileSelect(i, e)}
@@ -769,14 +936,18 @@ export function AddGuideView({
                             key={fIdx}
                             className="relative rounded-lg overflow-hidden border border-marine-border bg-marine-dark aspect-square p-1.5 flex flex-col items-center justify-center text-center"
                           >
-                            {item.isPdf ? (
+                            {item.isPdf || item.isWord || item.isVideo ? (
                               <div className="flex flex-col items-center justify-center text-rose-400 gap-1 p-1">
-                                <FileText className="h-6 w-6 text-rose-500" />
+                                {item.isVideo ? (
+                                  <Video className="h-6 w-6 text-sky-400" />
+                                ) : (
+                                  <FileText className="h-6 w-6 text-rose-500" />
+                                )}
                                 <span className="text-[9px] font-semibold text-marine-text truncate max-w-[80px]" title={item.file.name}>
                                   {item.file.name}
                                 </span>
-                                <span className="text-[8px] bg-rose-500/20 text-rose-300 px-1 py-0.2 rounded font-bold">
-                                  PDF
+                                <span className="text-[8px] bg-marine-accent/20 text-marine-accent px-1 py-0.5 rounded font-bold">
+                                  {item.isVideo ? "VIDEO" : item.isWord ? "WORD" : "PDF"}
                                 </span>
                               </div>
                             ) : (
@@ -831,14 +1002,14 @@ export function AddGuideView({
                 <Upload className="h-8 w-8 text-marine-accent mb-1.5" />
               )}
               <span className="text-xs font-medium text-marine-text">
-                {compressing ? "Optimizing & Compressing Images..." : "Click to choose General Photos or PDF Drawings"}
+                {compressing ? "Optimizing & Compressing Files..." : "Click to choose Photos, Videos, PDF or Word files"}
               </span>
               <span className="text-[11px] text-marine-muted mt-0.5">
-                Auto-optimized to WebP | Supports JPG, PNG, WEBP & PDF Drawings
+                Images auto-optimized to WebP | Videos compressed to ~55% | Supports Images, Videos, PDF, DOC & DOCX
               </span>
               <input
                 type="file"
-                accept="image/*,application/pdf"
+                accept="image/*,video/*,.pdf,.doc,.docx"
                 multiple
                 disabled={compressing}
                 onChange={handleFileSelect}
@@ -854,14 +1025,18 @@ export function AddGuideView({
                   key={i}
                   className="relative group rounded-xl border border-marine-border bg-marine-dark aspect-square p-2 flex flex-col items-center justify-center text-center"
                 >
-                  {item.isPdf ? (
+                  {item.isPdf || item.isWord || item.isVideo ? (
                     <div className="flex flex-col items-center justify-center text-rose-400 gap-1.5 p-2">
-                      <FileText className="h-8 w-8 text-rose-500" />
+                      {item.isVideo ? (
+                        <Video className="h-8 w-8 text-sky-400" />
+                      ) : (
+                        <FileText className="h-8 w-8 text-rose-500" />
+                      )}
                       <span className="text-[10px] font-semibold text-marine-text truncate max-w-[100px]" title={item.file.name}>
                         {item.file.name}
                       </span>
-                      <span className="text-[9px] bg-rose-500/20 text-rose-300 px-1.5 py-0.5 rounded font-bold uppercase">
-                        PDF Schematic
+                      <span className="text-[9px] bg-marine-accent/20 text-marine-accent px-1.5 py-0.5 rounded font-bold uppercase">
+                        {item.isVideo ? "VIDEO" : item.isWord ? "WORD" : "PDF"}
                       </span>
                     </div>
                   ) : (

@@ -2,15 +2,33 @@ interface Env {
   STORAGE: R2Bucket;
 }
 
-const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15 MB
+const MAX_FILE_SIZE = 15 * 1024 * 1024; // Final stored file limit
+const MAX_VIDEO_FILE_SIZE = 15 * 1024 * 1024; // Videos arrive here after client compression
 
-const ALLOWED_TYPES = new Set([
+const ALLOWED_IMAGE_TYPES = new Set([
   "image/jpeg",
   "image/png",
   "image/webp",
   "image/gif",
-  "application/pdf",
 ]);
+
+const ALLOWED_VIDEO_TYPES = new Set([
+  "video/webm",
+  "video/mp4",
+  "video/quicktime",
+  "video/x-m4v",
+]);
+
+const ALLOWED_WORD_TYPES = new Set([
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+]);
+
+function getExtension(name: string): string {
+  return name.includes(".")
+    ? name.substring(name.lastIndexOf(".")).toLowerCase()
+    : "";
+}
 
 function jsonResponse(
   data: Record<string, unknown>,
@@ -52,29 +70,34 @@ export const onRequestPost: PagesFunction<Env> = async ({
       );
     }
 
-    if (file.size > MAX_FILE_SIZE) {
-      return jsonResponse(
-        {
-          success: false,
-          error: "File size must not exceed 15 MB",
-        },
-        413
-      );
-    }
+    const extension = getExtension(file.name);
+    const isImage = ALLOWED_IMAGE_TYPES.has(file.type) || /^\.(jpg|jpeg|png|webp|gif)$/.test(extension);
+    const isPdf = file.type === "application/pdf" || extension === ".pdf";
+    const isVideo = ALLOWED_VIDEO_TYPES.has(file.type) || /^\.(webm|mp4|m4v|mov)$/.test(extension);
+    const isWord = ALLOWED_WORD_TYPES.has(file.type) || /^\.(doc|docx)$/.test(extension);
 
-    if (!ALLOWED_TYPES.has(file.type)) {
+    if (!isImage && !isPdf && !isVideo && !isWord) {
       return jsonResponse(
         {
           success: false,
-          error: "Only JPG, PNG, WEBP, GIF images and PDF files are allowed",
+          error: "Only image, video, PDF, DOC and DOCX files are allowed",
         },
         415
       );
     }
 
-    const extension = file.name.includes(".")
-      ? file.name.substring(file.name.lastIndexOf(".")).toLowerCase()
-      : "";
+    const maxSize = isVideo ? MAX_VIDEO_FILE_SIZE : MAX_FILE_SIZE;
+    if (file.size > maxSize) {
+      return jsonResponse(
+        {
+          success: false,
+          error: isVideo
+            ? "Compressed video must be 15 MB or smaller"
+            : "File size must not exceed 15 MB",
+        },
+        413
+      );
+    }
 
     const safeExtension = extension.replace(/[^a-z0-9.]/g, "");
 
