@@ -19,6 +19,8 @@ import { AddGuideView } from "./views/AddGuideView";
 import { AdminPendingView } from "./views/AdminPendingView";
 import { AllGuidesView } from "./views/AllGuidesView";
 import { FeedbackView } from "./views/FeedbackView";
+import { AnalyticsView } from "./views/AnalyticsView";
+import { trackUsage } from "./lib/analytics";
 
 const CATEGORIES_CACHE_KEY = "marinefix_categories_cache";
 const EQUIPMENT_CACHE_KEY = "marinefix_equipment_cache";
@@ -59,6 +61,10 @@ export function App() {
 
   const [bookmarkIds, setBookmarkIds] = useState<string[]>([]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    trackUsage(window.location.pathname);
+  }, [route]);
 
   useEffect(() => {
     let active = true;
@@ -280,6 +286,8 @@ export function App() {
               equipment={equipment}
             />
           )}
+
+          {route.name === "admin-analytics" && <AnalyticsView />}
         </main>
       </div>
 

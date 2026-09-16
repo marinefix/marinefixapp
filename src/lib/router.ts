@@ -9,7 +9,8 @@ export type Route =
   | { name: "add-guide"; equipmentId?: string }
   | { name: "admin-pending" }
   | { name: "all-guides" }
-  | { name: "feedback" };
+  | { name: "feedback" }
+  | { name: "admin-analytics" };
 
 export function parsePath(pathname: string): Route {
   const path = pathname.replace(/\/+$/, "") || "/";
@@ -30,6 +31,9 @@ export function parsePath(pathname: string): Route {
 
   if (path === "/feedback")
     return { name: "feedback" };
+
+  if (path === "/admin-analytics")
+    return { name: "admin-analytics" };
 
   const cat = path.match(
     /^\/category\/([^/]+)$/
@@ -114,6 +118,9 @@ export function routeToPath(route: Route): string {
 
     case "feedback":
       return "/feedback";
+
+    case "admin-analytics":
+      return "/admin-analytics";
   }
 }
 

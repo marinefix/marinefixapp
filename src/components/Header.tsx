@@ -7,6 +7,7 @@ import {
   Menu,
   LogOut,
   Smartphone,
+  BarChart3,
 } from "lucide-react";
 import { SearchBar } from "./SearchBar";
 import { navigate } from "../lib/router";
@@ -167,6 +168,16 @@ export function Header({ onToggleMobileMenu }: HeaderProps) {
                 >
                   <ShieldAlert className="h-4 w-4" />
                   <span>Review</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => navigate({ name: "admin-analytics" })}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 hover:bg-cyan-500/15 transition cursor-pointer"
+                  title="View usage analytics"
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  <span>Analytics</span>
                 </button>
 
                 <button
