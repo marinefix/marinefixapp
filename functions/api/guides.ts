@@ -478,6 +478,173 @@ export const onRequestPatch: PagesFunction<Env> = async (context) => {
       );
     }
 
+
+    if (action === "edit") {
+      const data = (await context.request.json()) as any;
+
+      if (!id || id !== data.id) {
+        return new Response("Missing guide id", { status: 400 });
+      }
+
+      if (!data.equipment_id || !data.title?.trim()) {
+        return new Response("Equipment and title are required", { status: 400 });
+      }
+
+      // Read current attachment URLs before replacing D1 records.
+      const oldGuideImages = await context.env.DB.prepare(
+        "SELECT url FROM guide_images WHERE guide_id = ?"
+      )
+        .bind(id)
+        .all();
+
+      const oldSteps = await context.env.DB.prepare(
+        "SELECT images FROM guide_steps WHERE guide_id = ?"
+      )
+        .bind(id)
+        .all();
+
+      const oldUrls = new Set<string>();
+
+      for (const row of oldGuideImages.results || []) {
+        const url = (row as any).url;
+        if (url) oldUrls.add(String(url));
+      }
+
+      for (const row of oldSteps.results || []) {
+        try {
+          const images = JSON.parse((row as any).images || "[]");
+          if (Array.isArray(images)) {
+            for (const item of images) {
+              const url = typeof item === "string" ? item : item?.url;
+              if (url) oldUrls.add(String(url));
+            }
+          }
+        } catch {
+          // Ignore malformed legacy attachment JSON.
+        }
+      }
+
+      const nextSteps = Array.isArray(data.steps) ? data.steps : [];
+      const nextOverall = Array.isArray(data.image_urls) ? data.image_urls : [];
+      const retainedUrls = new Set<string>();
+
+      for (const step of nextSteps) {
+        const images = Array.isArray(step.images) ? step.images : [];
+        for (const item of images) {
+          const url = typeof item === "string" ? item : item?.url;
+          if (url) retainedUrls.add(String(url));
+        }
+      }
+
+      for (const item of nextOverall) {
+        const url = typeof item === "string" ? item : item?.url;
+        if (url) retainedUrls.add(String(url));
+      }
+
+      await context.env.DB.prepare(
+        `UPDATE guides SET
+          equipment_id = ?,
+          title = ?,
+          author_email = ?,
+          author_phone = ?,
+          symptom = ?,
+          safety_ppe = ?,
+          tools_required = ?,
+          introduction = ?,
+          status = 'pending',
+          is_approved = 0
+        WHERE id = ?`
+      )
+        .bind(
+          data.equipment_id,
+          data.title.trim(),
+          data.author_email || null,
+          data.author_phone || null,
+          data.symptom || null,
+          JSON.stringify(data.safety_ppe || []),
+          JSON.stringify(data.tools_required || []),
+          data.introduction || null,
+          id
+        )
+        .run();
+
+      // Replace steps and overall attachments with the edited version.
+      await context.env.DB.prepare(
+        "DELETE FROM guide_steps WHERE guide_id = ?"
+      )
+        .bind(id)
+        .run();
+
+      await context.env.DB.prepare(
+        "DELETE FROM guide_images WHERE guide_id = ?"
+      )
+        .bind(id)
+        .run();
+
+      for (let i = 0; i < nextSteps.length; i++) {
+        const step = nextSteps[i];
+        const images = Array.isArray(step.images) ? step.images : [];
+
+        await context.env.DB.prepare(
+          `INSERT INTO guide_steps (
+            id, guide_id, step_number, title, instruction, warning, images
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)`
+        )
+          .bind(
+            crypto.randomUUID(),
+            id,
+            i + 1,
+            String(step.title || `Step ${i + 1}`).trim(),
+            String(step.instruction || "").trim(),
+            step.warning ? String(step.warning).trim() : null,
+            JSON.stringify(images)
+          )
+          .run();
+      }
+
+      for (let i = 0; i < nextOverall.length; i++) {
+        const item = nextOverall[i];
+        const url = typeof item === "string" ? item : item?.url;
+        if (!url) continue;
+
+        await context.env.DB.prepare(
+          `INSERT INTO guide_images (
+            id, guide_id, caption, url, order_index
+          ) VALUES (?, ?, ?, ?, ?)`
+        )
+          .bind(
+            crypto.randomUUID(),
+            id,
+            typeof item === "string"
+              ? null
+              : item.name || item.caption || null,
+            url,
+            i
+          )
+          .run();
+      }
+
+      // Remove R2 objects that were deleted from the edited guide.
+      for (const oldUrl of oldUrls) {
+        if (retainedUrls.has(oldUrl)) continue;
+
+        try {
+          const urlObj = new URL(oldUrl, "http://localhost");
+          const key = urlObj.searchParams.get("key");
+          if (key && context.env.STORAGE) {
+            await context.env.STORAGE.delete(key);
+          }
+        } catch {
+          // Ignore external/legacy URLs that cannot be parsed.
+        }
+      }
+
+      return Response.json({
+        success: true,
+        message: "Guide updated successfully",
+      });
+    }
+
     if (action === "approve") {
       await context.env.DB.prepare(
         "UPDATE guides SET is_approved = 1, status = 'approved' WHERE id = ?"

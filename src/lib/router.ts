@@ -8,6 +8,7 @@ export type Route =
   | { name: "bookmarks" }
   | { name: "add-guide"; equipmentId?: string }
   | { name: "admin-panel" }
+  | { name: "admin-edit-guide"; id: string }
   | { name: "admin-pending" }
   | { name: "all-guides" }
   | { name: "feedback" }
@@ -26,6 +27,16 @@ export function parsePath(pathname: string): Route {
 
   if (path === "/admin-panel")
     return { name: "admin-panel" };
+
+  const adminEditGuide = path.match(
+    /^\/admin-edit-guide\/([^/]+)$/
+  );
+
+  if (adminEditGuide)
+    return {
+      name: "admin-edit-guide",
+      id: decodeURIComponent(adminEditGuide[1]),
+    };
 
   if (path === "/admin-pending")
     return { name: "admin-pending" };
@@ -116,6 +127,9 @@ export function routeToPath(route: Route): string {
 
     case "admin-panel":
       return "/admin-panel";
+
+    case "admin-edit-guide":
+      return `/admin-edit-guide/${encodeURIComponent(route.id)}`;
 
     case "admin-pending":
       return "/admin-pending";

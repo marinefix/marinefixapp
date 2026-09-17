@@ -13,10 +13,12 @@ import {
   Mail,
   Phone,
   ExternalLink,
+  Pencil,
 } from "lucide-react";
 import { getPendingGuides, approveGuide, fetchGuideById } from "../lib/queries";
 import type { Equipment, Guide, Category } from "../types";
 import { Lightbox } from "../components/Lightbox";
+import { navigate } from "../lib/router";
 
 type Props = {
   categories?: Category[];
@@ -223,6 +225,14 @@ export function AdminPendingView(_props: Props = {}) {
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => navigate({ name: "admin-edit-guide", id: guide.id })}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-sky-500/10 text-sky-300 border border-sky-500/20 hover:bg-sky-500/20 transition text-xs font-semibold cursor-pointer"
+                    title="Edit this guide"
+                  >
+                    <Pencil className="h-4 w-4" /> Edit
+                  </button>
                   <button
                     type="button"
                     onClick={() => handleOpenReview(guide.id)}
@@ -556,6 +566,13 @@ export function AdminPendingView(_props: Props = {}) {
                 )}
 
                 <div className="flex items-center justify-end gap-3 pt-4 border-t border-marine-border">
+                  <button
+                    type="button"
+                    onClick={() => navigate({ name: "admin-edit-guide", id: selectedGuide.id })}
+                    className="px-4 py-2 bg-sky-500/10 text-sky-300 border border-sky-500/20 hover:bg-sky-500/20 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Pencil className="h-4 w-4" /> Edit Guide
+                  </button>
                   <button
                     type="button"
                     onClick={() => handleReject(selectedGuide.id)}

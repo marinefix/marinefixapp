@@ -521,3 +521,45 @@ export async function submitFeedback(
     }
   );
 }
+
+// ============================================================
+// ADMIN GUIDE EDIT
+// ============================================================
+
+export async function updateGuideAsAdmin(input: {
+  id: string;
+  equipment_id: string;
+  title: string;
+  author_email?: string;
+  author_phone?: string;
+  symptom?: string;
+  safety_ppe?: string[];
+  tools_required?: string[];
+  introduction?: string;
+  steps: {
+    title: string;
+    instruction: string;
+    warning?: string;
+    images?: any[];
+  }[];
+  image_urls: {
+    url: string;
+    caption?: string;
+    isPdf?: boolean;
+    name?: string;
+  }[];
+}): Promise<void> {
+  await apiFetch(
+    "/api/guides",
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        ...input,
+        action: "edit",
+      }),
+    }
+  );
+}
