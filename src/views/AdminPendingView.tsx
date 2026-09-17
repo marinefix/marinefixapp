@@ -16,8 +16,8 @@ import {
 } from "lucide-react";
 import { getPendingGuides, approveGuide, fetchGuideById } from "../lib/queries";
 import type { Equipment, Guide, Category } from "../types";
-import { Lightbox } from "../components/Lightbox";
 import { navigate } from "../lib/router";
+import { Lightbox } from "../components/Lightbox";
 
 type Props = {
   categories?: Category[];
@@ -230,6 +230,13 @@ export function AdminPendingView(_props: Props = {}) {
                     className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-marine-hover text-marine-text border border-marine-border hover:bg-marine-border transition text-xs font-semibold cursor-pointer"
                   >
                     <Eye className="h-4 w-4 text-marine-accent" /> Review / View
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate({ name: "admin-edit-guide", id: guide.id })}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500/10 text-amber-300 border border-amber-500/30 hover:bg-amber-500/20 transition text-xs font-semibold cursor-pointer"
+                  >
+                    <FileText className="h-4 w-4" /> Edit Guide
                   </button>
                   <button
                     type="button"
