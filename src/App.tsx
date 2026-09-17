@@ -20,6 +20,7 @@ import { AdminPendingView } from "./views/AdminPendingView";
 import { AllGuidesView } from "./views/AllGuidesView";
 import { FeedbackView } from "./views/FeedbackView";
 import { AnalyticsView } from "./views/AnalyticsView";
+import { AdminPanelView } from "./views/AdminPanelView";
 import { trackUsage } from "./lib/analytics";
 
 const CATEGORIES_CACHE_KEY = "marinefix_categories_cache";
@@ -272,6 +273,8 @@ export function App() {
               equipment={equipment}
             />
           )}
+
+          {route.name === "admin-panel" && <AdminPanelView />}
 
           {route.name === "admin-pending" && (
             <AdminPendingView

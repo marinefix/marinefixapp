@@ -7,6 +7,7 @@ export type Route =
   | { name: "guide"; id: string }
   | { name: "bookmarks" }
   | { name: "add-guide"; equipmentId?: string }
+  | { name: "admin-panel" }
   | { name: "admin-pending" }
   | { name: "all-guides" }
   | { name: "feedback" }
@@ -22,6 +23,9 @@ export function parsePath(pathname: string): Route {
 
   if (path === "/add-guide")
     return { name: "add-guide" };
+
+  if (path === "/admin-panel")
+    return { name: "admin-panel" };
 
   if (path === "/admin-pending")
     return { name: "admin-pending" };
@@ -109,6 +113,9 @@ export function routeToPath(route: Route): string {
             route.equipmentId
           )}/add-guide`
         : "/add-guide";
+
+    case "admin-panel":
+      return "/admin-panel";
 
     case "admin-pending":
       return "/admin-pending";
