@@ -231,7 +231,7 @@ export function AdminPendingView(_props: Props = {}) {
                     className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-sky-500/10 text-sky-300 border border-sky-500/20 hover:bg-sky-500/20 transition text-xs font-semibold cursor-pointer"
                     title="Edit this guide"
                   >
-                    <Pencil className="h-4 w-4" /> Edit
+                    <Pencil className="h-4 w-4" /> Edit Guide
                   </button>
                   <button
                     type="button"
@@ -571,7 +571,7 @@ export function AdminPendingView(_props: Props = {}) {
                     onClick={() => navigate({ name: "admin-edit-guide", id: selectedGuide.id })}
                     className="px-4 py-2 bg-sky-500/10 text-sky-300 border border-sky-500/20 hover:bg-sky-500/20 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer"
                   >
-                    <Pencil className="h-4 w-4" /> Edit Guide
+                    <Pencil className="h-4 w-4" /> Edit Guide Guide
                   </button>
                   <button
                     type="button"
