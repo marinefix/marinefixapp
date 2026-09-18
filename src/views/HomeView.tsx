@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import type { Category, Equipment } from "../types";
 import { navigate } from "../lib/router";
+import { Capacitor } from "@capacitor/core";
 
 type Props = {
   categories: Category[];
@@ -77,11 +78,8 @@ export function HomeView({
           window.location.hostname === "localhost");
 
       setIsApp(
-        Boolean(
-          isCapacitor ||
-            isStandalone ||
-            isAndroidWebView
-        )
+        Capacitor.isNativePlatform() &&
+          Capacitor.getPlatform() === "android"
       );
     };
 
