@@ -68,6 +68,29 @@ export function App() {
     trackUsage(window.location.pathname);
   }, [route]);
 
+  // Lock the background page while the mobile Departments drawer is open.
+  // This keeps only the drawer content scrollable on mobile.
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+
+    const bodyOverflow = document.body.style.overflow;
+    const htmlOverflow = document.documentElement.style.overflow;
+    const bodyOverscroll = document.body.style.overscrollBehavior;
+    const htmlOverscroll = document.documentElement.style.overscrollBehavior;
+
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overscrollBehavior = "none";
+    document.documentElement.style.overscrollBehavior = "none";
+
+    return () => {
+      document.body.style.overflow = bodyOverflow;
+      document.documentElement.style.overflow = htmlOverflow;
+      document.body.style.overscrollBehavior = bodyOverscroll;
+      document.documentElement.style.overscrollBehavior = htmlOverscroll;
+    };
+  }, [mobileMenuOpen]);
+
   useEffect(() => {
     let active = true;
 
