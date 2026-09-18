@@ -4,9 +4,13 @@ import type {
   Guide,
   GuideWithRelations,
 } from "../types";
-import { getOfflineGuides } from "./offlineStorage";
 
-const API_BASE_URL = "";
+import {
+  getOfflineGuides,
+  removeGuideOffline,
+} from "./offlineStorage";
+
+const API_BASE_URL = "https://marinefixapp.pages.dev";
 
 async function apiFetch<T>(
   endpoint: string,
@@ -180,6 +184,7 @@ function saveLocalBookmarkIds(
 // BOOKMARK IDS
 // LOCAL FIRST
 // ============================================================
+
 export async function fetchBookmarkIds(): Promise<
   string[]
 > {
@@ -223,6 +228,7 @@ export async function fetchBookmarkIds(): Promise<
 // SAVED GUIDES
 // LOCAL FIRST
 // ============================================================
+
 export async function fetchBookmarkedGuides(): Promise<
   GuideWithRelations[]
 > {
@@ -267,6 +273,7 @@ export async function fetchBookmarkedGuides(): Promise<
 // ============================================================
 // ADD BOOKMARK
 // ============================================================
+
 export async function addBookmark(
   guideId: string
 ): Promise<void> {
@@ -307,6 +314,7 @@ export async function addBookmark(
 // ============================================================
 // REMOVE BOOKMARK
 // ============================================================
+
 export async function removeBookmark(
   guideId: string
 ): Promise<void> {
@@ -315,10 +323,14 @@ export async function removeBookmark(
       (id) => id !== guideId
     );
 
-  // Remove locally FIRST.
+  // Remove bookmark locally FIRST.
   saveLocalBookmarkIds(
     localIds
   );
+
+  // IMPORTANT:
+  // Also remove the guide from offline cache.
+  await removeGuideOffline(guideId);
 
   // Then sync server.
   try {
@@ -341,6 +353,7 @@ export async function removeBookmark(
 // ============================================================
 // UPLOAD
 // ============================================================
+
 export async function uploadImage(
   file: File
 ): Promise<string> {
@@ -377,6 +390,7 @@ export async function uploadImage(
 // ============================================================
 // GUIDE CREATE
 // ============================================================
+
 export async function createGuide(input: {
   equipment_id: string;
   title: string;
@@ -420,6 +434,7 @@ export async function createGuide(input: {
 // ============================================================
 // ADMIN
 // ============================================================
+
 export async function getPendingGuides(): Promise<
   (Guide & {
     equipment?: Equipment;
@@ -536,12 +551,14 @@ export async function updateGuideAsAdmin(input: {
   safety_ppe?: string[];
   tools_required?: string[];
   introduction?: string;
+
   steps: {
     title: string;
     instruction: string;
     warning?: string;
     images?: any[];
   }[];
+
   image_urls: {
     url: string;
     caption?: string;
