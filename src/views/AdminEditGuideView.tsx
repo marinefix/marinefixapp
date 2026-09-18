@@ -20,6 +20,7 @@ import {
   uploadImage,
 } from "../lib/queries";
 import { navigate } from "../lib/router";
+import { RichTextEditor } from "../components/RichTextEditor";
 
 type Props = {
   guideId: string;
@@ -722,17 +723,13 @@ export function AdminEditGuideView({
                 </Field>
 
                 <Field label="Action / Instruction">
-                  <textarea
+                  <RichTextEditor
                     value={step.instruction}
-                    onChange={(e) =>
-                      updateStep(
-                        index,
-                        "instruction",
-                        e.target.value
-                      )
+                    onChange={(value) =>
+                      updateStep(index, "instruction", value)
                     }
-                    rows={4}
-                    className="input"
+                    placeholder="Write the procedure... Select text and use Bold, Bullets or Numbered points."
+                    minHeight="140px"
                   />
                 </Field>
 

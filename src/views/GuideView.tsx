@@ -26,6 +26,7 @@ import {
 import { navigate } from "../lib/router";
 import { Lightbox } from "../components/Lightbox";
 import { checkIsAdmin } from "../lib/adminAuth";
+import { sanitizeRichTextHtml } from "../components/RichTextEditor";
 import * as pdfjsLib from "pdfjs-dist";
 import {
   getOfflineAttachmentUrl,
@@ -1080,11 +1081,12 @@ export function GuideView({
                                 Instruction &amp; Procedure
                               </span>
 
-                              <p className="text-sm text-marine-text print:text-slate-800 leading-relaxed whitespace-pre-line break-words">
-                                {
-                                  step.instruction
-                                }
-                              </p>
+                              <div
+                                className="rich-guide-content text-sm text-marine-text print:text-slate-800 leading-relaxed break-words [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-0.5"
+                                dangerouslySetInnerHTML={{
+                                  __html: sanitizeRichTextHtml(step.instruction),
+                                }}
+                              />
                             </div>
                           )}
 

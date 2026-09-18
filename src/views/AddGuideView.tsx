@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import type { Category, Equipment } from "../types";
 import { createGuide, uploadImage } from "../lib/queries";
+import { RichTextEditor } from "../components/RichTextEditor";
 
 type Props = {
   equipmentId?: string;
@@ -714,12 +715,11 @@ export function AddGuideView({
                     <label className="text-[11px] font-bold text-marine-muted uppercase block mb-1">
                       Action / Instruction
                     </label>
-                    <textarea
+                    <RichTextEditor
                       value={s.instruction}
-                      onChange={(e) => updateStep(i, "instruction", e.target.value)}
-                      rows={2}
-                      placeholder="Detailed step instruction..."
-                      className="input"
+                      onChange={(value) => updateStep(i, "instruction", value)}
+                      placeholder="Write the procedure... Select text and use Bold, Bullets or Numbered points."
+                      minHeight="120px"
                     />
                   </div>
 

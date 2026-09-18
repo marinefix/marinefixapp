@@ -294,6 +294,25 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   }
 };
 
+// Keep guide step formatting limited to safe text-formatting tags.
+// Authors can use the rich editor for bold and lists; pasted HTML is sanitized here too.
+function sanitizeGuideRichText(value: unknown): string {
+  let html = String(value ?? "");
+  html = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
+  html = html.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "");
+  html = html.replace(/<iframe\b[^>]*>[\s\S]*?<\/iframe>/gi, "");
+  html = html.replace(/<object\b[^>]*>[\s\S]*?<\/object>/gi, "");
+  html = html.replace(/<embed\b[^>]*>/gi, "");
+  html = html.replace(/<\/?(?:strong|b|ul|ol|li|br|p)(?:\s[^>]*)?>/gi, (tag) =>
+    tag.replace(/\s+(?:on[a-z]+|style|href|src|class|id|title)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+  );
+  html = html.replace(/<\/?[a-z][^>]*>/gi, (tag) => {
+    return /^<\/?(?:strong|b|ul|ol|li|br|p)(?:\s[^>]*)?>$/i.test(tag) ? tag : "";
+  });
+  html = html.replace(/\son[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+  return html.trim();
+}
+
 // ─────────────────────────────────────────────
 // Guide Submit (POST)
 // ─────────────────────────────────────────────
@@ -340,7 +359,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
             guideId,
             step.step_number || i + 1,
             step.title || `Step ${i + 1}`,
-            step.instruction || "",
+            sanitizeGuideRichText(step.instruction || ""),
             step.warning || null,
             JSON.stringify(step.images || [])
           )
@@ -558,7 +577,7 @@ export const onRequestPatch: PagesFunction<Env> = async (context) => {
               id,
               i + 1,
               String(step.title || `Step ${i + 1}`).trim(),
-              String(step.instruction || "").trim(),
+              sanitizeGuideRichText(step.instruction || ""),
               step.warning ? String(step.warning).trim() : null,
               JSON.stringify(Array.isArray(step.images) ? step.images : [])
             )

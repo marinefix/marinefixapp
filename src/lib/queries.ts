@@ -6,7 +6,7 @@ import type {
 } from "../types";
 import { getOfflineGuides } from "./offlineStorage";
 
-const API_BASE_URL = "https://marinefixapp.pages.dev";
+const API_BASE_URL = "";
 
 async function apiFetch<T>(
   endpoint: string,
