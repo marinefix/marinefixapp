@@ -162,6 +162,38 @@ export function AdminPendingView(_props: Props = {}) {
     }
   }
 
+
+  function sanitizeRichText(html: string): string {
+    if (!html) return "";
+
+    return html
+      // Remove dangerous container elements and their contents.
+      .replace(
+        /<(script|style|iframe|object|embed|link|meta|form|input|button)[^>]*>[\s\S]*?<\/\1>/gi,
+        ""
+      )
+      // Remove self-closing dangerous elements.
+      .replace(
+        /<(script|style|iframe|object|embed|link|meta|form|input|button)[^>]*\/?>/gi,
+        ""
+      )
+      // Keep only formatting tags used by the RichTextEditor.
+      .replace(
+        /<(?!\/?(?:strong|b|em|i|u|br|p|ul|ol|li)(?:\s[^>]*)?>)[^>]+>/gi,
+        ""
+      )
+      // Remove inline event handlers.
+      .replace(
+        /\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi,
+        ""
+      )
+      // Remove javascript: URLs if any are present.
+      .replace(
+        /\s+(?:href|src)\s*=\s*(?:"javascript:[^"]*"|'javascript:[^']*'|javascript:[^\s>]+)/gi,
+        ""
+      );
+  }
+
   const getCleanTitle = (guide: Guide) => {
     if (!guide.title || guide.title.toLowerCase() === "null" || guide.title.trim() === "") {
       return "Untitled Troubleshooting Guide";
@@ -422,7 +454,12 @@ export function AdminPendingView(_props: Props = {}) {
                                 <span className="text-[10px] font-bold text-marine-muted uppercase tracking-wider block">
                                   Action / Instruction:
                                 </span>
-                                <p className="text-sm text-marine-text">{step.instruction}</p>
+                                <div
+                                  className="text-sm text-marine-text [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:mb-1 [&_strong]:font-bold [&_b]:font-bold [&_em]:italic [&_i]:italic [&_u]:underline"
+                                  dangerouslySetInnerHTML={{
+                                    __html: sanitizeRichText(step.instruction),
+                                  }}
+                                />
                               </div>
                             )}
 
