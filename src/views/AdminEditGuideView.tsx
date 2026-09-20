@@ -20,7 +20,7 @@ import {
   uploadImage,
 } from "../lib/queries";
 import { navigate } from "../lib/router";
-import { RichTextEditor } from "../components/RichTextEditor";
+import { Lightbox } from "../components/Lightbox";
 
 type Props = {
   guideId: string;
@@ -175,6 +175,9 @@ export function AdminEditGuideView({
   const [steps, setSteps] = useState<EditStep[]>([]);
   const [overallAttachments, setOverallAttachments] = useState<Attachment[]>([]);
   const [overallNewFiles, setOverallNewFiles] = useState<NewFile[]>([]);
+  const [lightboxUrls, setLightboxUrls] = useState<string[]>([]);
+  const [lightboxCaptions, setLightboxCaptions] = useState<string[]>([]);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -432,6 +435,13 @@ export function AdminEditGuideView({
       setProcessing(false);
       event.target.value = "";
     }
+  }
+
+  function openLightbox(urls: string[], captions: string[] = [], index = 0) {
+    if (!urls.length) return;
+    setLightboxUrls(urls);
+    setLightboxCaptions(urls.map((_, i) => captions[i] || `Attachment ${i + 1}`));
+    setLightboxIndex(index);
   }
 
   async function save(e: FormEvent) {
@@ -723,13 +733,17 @@ export function AdminEditGuideView({
                 </Field>
 
                 <Field label="Action / Instruction">
-                  <RichTextEditor
+                  <textarea
                     value={step.instruction}
-                    onChange={(value) =>
-                      updateStep(index, "instruction", value)
+                    onChange={(e) =>
+                      updateStep(
+                        index,
+                        "instruction",
+                        e.target.value
+                      )
                     }
-                    placeholder="Write the procedure... Select text and use Bold, Bullets or Numbered points."
-                    minHeight="140px"
+                    rows={4}
+                    className="input"
                   />
                 </Field>
 
@@ -762,11 +776,28 @@ export function AdminEditGuideView({
                               </div>
                             </div>
                           ) : (
-                            <img
-                              src={item.url}
-                              alt=""
-                              className="max-h-28 w-full object-contain rounded"
-                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const imageUrls = step.attachments
+                                  .filter((attachment) => !attachment.isPdf)
+                                  .map((attachment) => attachment.url);
+                                const imageIndex = imageUrls.indexOf(item.url);
+                                openLightbox(
+                                  imageUrls,
+                                  imageUrls.map((_, i) => `Step ${index + 1} Attachment ${i + 1}`),
+                                  Math.max(0, imageIndex)
+                                );
+                              }}
+                              className="group w-full cursor-zoom-in"
+                              title="Click to Zoom Fullscreen"
+                            >
+                              <img
+                                src={item.url}
+                                alt=""
+                                className="max-h-28 w-full object-contain rounded group-hover:scale-105 transition-transform duration-200"
+                              />
+                            </button>
                           )}
                           <button
                             type="button"
@@ -866,11 +897,28 @@ export function AdminEditGuideView({
                       </div>
                     </div>
                   ) : (
-                    <img
-                      src={item.url}
-                      alt=""
-                      className="max-h-28 w-full object-contain rounded"
-                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const imageUrls = overallAttachments
+                          .filter((attachment) => !attachment.isPdf)
+                          .map((attachment) => attachment.url);
+                        const imageIndex = imageUrls.indexOf(item.url);
+                        openLightbox(
+                          imageUrls,
+                          imageUrls.map((_, i) => `Overall Attachment ${i + 1}`),
+                          Math.max(0, imageIndex)
+                        );
+                      }}
+                      className="group w-full cursor-zoom-in"
+                      title="Click to Zoom Fullscreen"
+                    >
+                      <img
+                        src={item.url}
+                        alt=""
+                        className="max-h-28 w-full object-contain rounded group-hover:scale-105 transition-transform duration-200"
+                      />
+                    </button>
                   )}
                   <button
                     type="button"
@@ -949,6 +997,25 @@ export function AdminEditGuideView({
           After saving, the guide remains <b>Pending</b>. You can review it again and then approve/publish.
         </div>
       </form>
+
+      {lightboxIndex !== null && lightboxUrls.length > 0 && (
+        <Lightbox
+          urls={lightboxUrls}
+          captions={lightboxCaptions}
+          index={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+          onPrev={() =>
+            setLightboxIndex((current) =>
+              current === null ? 0 : (current - 1 + lightboxUrls.length) % lightboxUrls.length
+            )
+          }
+          onNext={() =>
+            setLightboxIndex((current) =>
+              current === null ? 0 : (current + 1) % lightboxUrls.length
+            )
+          }
+        />
+      )}
 
       <style>{`
         .input {

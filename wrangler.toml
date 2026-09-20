@@ -9,3 +9,6 @@ database_id = "5037b7da-5614-4801-84b2-676e31a80201"
 [[r2_buckets]]
 binding = "STORAGE"
 bucket_name = "marinefix-storage"
+
+[ai]
+binding = "AI"

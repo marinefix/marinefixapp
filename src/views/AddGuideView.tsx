@@ -19,6 +19,8 @@ import {
 import type { Category, Equipment } from "../types";
 import { createGuide, uploadImage } from "../lib/queries";
 import { RichTextEditor } from "../components/RichTextEditor";
+import { PhotoAnnotationEditor } from "../components/PhotoAnnotationEditor";
+import { translateText } from "../lib/queries";
 
 type Props = {
   equipmentId?: string;
@@ -45,6 +47,10 @@ type UploadItem = {
   previewUrl: string;
   isPdf: boolean;
 };
+
+type PhotoEditTarget =
+  | { scope: "step"; stepIndex: number }
+  | { scope: "overall" };
 
 const DEFAULT_PPE = [
   "Insulated electrical gloves",
@@ -145,6 +151,11 @@ export function AddGuideView({
   const [error, setError] = useState<string | null>(null);
   const [isSubmittedSuccessfully, setIsSubmittedSuccessfully] = useState(false);
 
+  const [photoEditQueue, setPhotoEditQueue] = useState<File[]>([]);
+  const [photoEditIndex, setPhotoEditIndex] = useState(0);
+  const [photoEditTarget, setPhotoEditTarget] = useState<PhotoEditTarget | null>(null);
+  const [translating, setTranslating] = useState<string | null>(null);
+
   useEffect(() => {
     setEquipmentList(equipment);
     if (equipmentId) setSelectedEquip(equipmentId);
@@ -227,23 +238,29 @@ export function AddGuideView({
         files.map(async (file) => {
           const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
           const finalFile = isPdf ? file : await compressImageFile(file);
-          return {
-            file: finalFile,
-            previewUrl: URL.createObjectURL(finalFile),
-            isPdf,
-          };
+          return { file: finalFile, previewUrl: URL.createObjectURL(finalFile), isPdf };
         })
       );
 
-      setSteps((prevSteps) =>
-        prevSteps.map((st, idx) =>
-          idx === stepIndex
-            ? { ...st, uploadItems: [...st.uploadItems, ...processedItems] }
-            : st
-        )
-      );
+      const pdfItems = processedItems.filter((item) => item.isPdf);
+      const imageFiles = processedItems.filter((item) => !item.isPdf).map((item) => item.file);
+
+      if (pdfItems.length > 0) {
+        setSteps((prevSteps) =>
+          prevSteps.map((st, idx) =>
+            idx === stepIndex ? { ...st, uploadItems: [...st.uploadItems, ...pdfItems] } : st
+          )
+        );
+      }
+
+      if (imageFiles.length > 0) {
+        setPhotoEditTarget({ scope: "step", stepIndex });
+        setPhotoEditQueue(imageFiles);
+        setPhotoEditIndex(0);
+      }
     } catch (err) {
       console.error("Image processing error:", err);
+      setError("Could not process the selected files.");
     } finally {
       setCompressing(false);
       e.target.value = "";
@@ -273,17 +290,25 @@ export function AddGuideView({
         files.map(async (file) => {
           const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
           const finalFile = isPdf ? file : await compressImageFile(file);
-          return {
-            file: finalFile,
-            previewUrl: URL.createObjectURL(finalFile),
-            isPdf,
-          };
+          return { file: finalFile, previewUrl: URL.createObjectURL(finalFile), isPdf };
         })
       );
 
-      setUploadItems((prev) => [...prev, ...processedItems]);
+      const pdfItems = processedItems.filter((item) => item.isPdf);
+      const imageFiles = processedItems.filter((item) => !item.isPdf).map((item) => item.file);
+
+      if (pdfItems.length > 0) {
+        setUploadItems((prev) => [...prev, ...pdfItems]);
+      }
+
+      if (imageFiles.length > 0) {
+        setPhotoEditTarget({ scope: "overall" });
+        setPhotoEditQueue(imageFiles);
+        setPhotoEditIndex(0);
+      }
     } catch (err) {
       console.error("Image processing error:", err);
+      setError("Could not process the selected files.");
     } finally {
       setCompressing(false);
       e.target.value = "";
@@ -292,6 +317,60 @@ export function AddGuideView({
 
   function removeUploadItem(index: number) {
     setUploadItems((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function finishCurrentPhoto(file: File) {
+    if (!photoEditTarget) return;
+
+    const previewUrl = URL.createObjectURL(file);
+
+    if (photoEditTarget.scope === "step") {
+      setSteps((prevSteps) =>
+        prevSteps.map((st, idx) =>
+          idx === photoEditTarget.stepIndex
+            ? { ...st, uploadItems: [...st.uploadItems, { file, previewUrl, isPdf: false }] }
+            : st
+        )
+      );
+    } else {
+      setUploadItems((prev) => [...prev, { file, previewUrl, isPdf: false }]);
+    }
+
+    advancePhotoQueue();
+  }
+
+  function skipCurrentPhoto() {
+    if (!photoEditQueue[photoEditIndex]) return;
+    finishCurrentPhoto(photoEditQueue[photoEditIndex]);
+  }
+
+  function advancePhotoQueue() {
+    if (photoEditIndex + 1 < photoEditQueue.length) {
+      setPhotoEditIndex((index) => index + 1);
+      return;
+    }
+
+    setPhotoEditQueue([]);
+    setPhotoEditIndex(0);
+    setPhotoEditTarget(null);
+  }
+
+  async function translateField(
+    key: string,
+    value: string,
+    apply: (translated: string) => void
+  ) {
+    if (!value.trim()) return;
+    try {
+      setTranslating(key);
+      const translated = await translateText(value);
+      apply(translated);
+    } catch (err) {
+      console.error("Translation error:", err);
+      setError((err as Error).message || "Translation failed. Please try again.");
+    } finally {
+      setTranslating(null);
+    }
   }
 
   async function submit(e: React.FormEvent) {
@@ -428,6 +507,29 @@ export function AddGuideView({
     }
   }
 
+  if (photoEditTarget && photoEditQueue[photoEditIndex]) {
+    return (
+      <div className="fixed inset-0 z-[100] bg-black/80 p-4 sm:p-6 flex items-center justify-center">
+        <div className="w-full max-w-5xl max-h-[95vh] overflow-hidden rounded-2xl border border-marine-border bg-marine-card shadow-2xl">
+          <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-marine-border">
+            <div>
+              <h2 className="font-bold text-marine-text">Edit Photo</h2>
+              <p className="text-xs text-marine-muted">Photo {photoEditIndex + 1} of {photoEditQueue.length} · Edit only if needed, otherwise Skip.</p>
+            </div>
+            <button type="button" onClick={() => { setPhotoEditQueue([]); setPhotoEditIndex(0); setPhotoEditTarget(null); }} className="px-3 py-1.5 rounded-lg border border-marine-border text-xs text-marine-muted hover:text-marine-text">Close</button>
+          </div>
+          <div className="p-3 sm:p-4 overflow-auto max-h-[calc(95vh-120px)]">
+            <PhotoAnnotationEditor
+              file={photoEditQueue[photoEditIndex]}
+              onDone={finishCurrentPhoto}
+              onSkip={skipCurrentPhoto}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (isSubmittedSuccessfully) {
     return (
       <div className="animate-fade-in px-6 py-16 lg:px-10 max-w-xl mx-auto text-center min-h-[80vh] flex flex-col items-center justify-center">
@@ -483,6 +585,24 @@ export function AddGuideView({
         <p className="text-marine-muted text-sm mt-1">
           Post a troubleshooting guide with dedicated photos/PDF drawings per step.
         </p>
+
+        {/* Multilingual Author Guidance */}
+        <div className="mt-4 rounded-xl border border-marine-accent/30 bg-marine-accent/5 p-4">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 shrink-0 text-lg">🌐</div>
+            <div>
+              <p className="text-sm font-semibold text-marine-text">
+                Write in the language you are comfortable with
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-marine-muted">
+                You can write your guide in Tamil, Hindi, Telugu, Kannada,
+                Malayalam, English, or other languages. Use the
+                <span className="font-semibold text-marine-accent"> Translate to English </span>
+                button to convert your content into professional technical English before submitting.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {error && (
@@ -575,6 +695,9 @@ export function AddGuideView({
         </Field>
 
         <Field label="Guide Title *">
+          <div className="flex justify-end mb-1">
+            <TranslateButton busy={translating === "title"} onClick={() => translateField("title", title, setTitle)} />
+          </div>
           <input
             type="text"
             required
@@ -586,6 +709,9 @@ export function AddGuideView({
         </Field>
 
         <Field label="Symptom / Fault Description">
+          <div className="flex justify-end mb-1">
+            <TranslateButton busy={translating === "symptom"} onClick={() => translateField("symptom", symptom, setSymptom)} />
+          </div>
           <textarea
             value={symptom}
             onChange={(e) => setSymptom(e.target.value)}
@@ -597,6 +723,9 @@ export function AddGuideView({
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Field label="Safety & PPE (comma separated)">
+            <div className="flex justify-end mb-1">
+              <TranslateButton busy={translating === "ppe"} onClick={() => translateField("ppe", ppeText, setPpeText)} />
+            </div>
             <input
               type="text"
               value={ppeText}
@@ -607,6 +736,9 @@ export function AddGuideView({
           </Field>
 
           <Field label="Tools Required (comma separated)">
+            <div className="flex justify-end mb-1">
+              <TranslateButton busy={translating === "tools"} onClick={() => translateField("tools", toolsText, setToolsText)} />
+            </div>
             <input
               type="text"
               value={toolsText}
@@ -618,6 +750,9 @@ export function AddGuideView({
         </div>
 
         <Field label="Introduction">
+          <div className="flex justify-end mb-1">
+            <TranslateButton busy={translating === "introduction"} onClick={() => translateField("introduction", introduction, setIntroduction)} />
+          </div>
           <textarea
             value={introduction}
             onChange={(e) => setIntroduction(e.target.value)}
@@ -699,9 +834,13 @@ export function AddGuideView({
                   </div>
 
                   <div>
-                    <label className="text-[11px] font-bold text-marine-muted uppercase block mb-1">
-                      Step Title
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] font-bold text-marine-muted uppercase block">Step Title</label>
+                      <TranslateButton
+                        busy={translating === `step-title-${i}`}
+                        onClick={() => translateField(`step-title-${i}`, s.title, (value) => updateStep(i, "title", value))}
+                      />
+                    </div>
                     <input
                       type="text"
                       value={s.title}
@@ -712,9 +851,13 @@ export function AddGuideView({
                   </div>
 
                   <div>
-                    <label className="text-[11px] font-bold text-marine-muted uppercase block mb-1">
-                      Action / Instruction
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] font-bold text-marine-muted uppercase block">Action / Instruction</label>
+                      <TranslateButton
+                        busy={translating === `step-instruction-${i}`}
+                        onClick={() => translateField(`step-instruction-${i}`, s.instruction, (value) => updateStep(i, "instruction", value))}
+                      />
+                    </div>
                     <RichTextEditor
                       value={s.instruction}
                       onChange={(value) => updateStep(i, "instruction", value)}
@@ -724,9 +867,13 @@ export function AddGuideView({
                   </div>
 
                   <div>
-                    <label className="text-[11px] font-bold text-amber-400 uppercase block mb-1">
-                      Safety Warning (Optional)
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] font-bold text-amber-400 uppercase block">Safety Warning (Optional)</label>
+                      <TranslateButton
+                        busy={translating === `step-warning-${i}`}
+                        onClick={() => translateField(`step-warning-${i}`, s.warning, (value) => updateStep(i, "warning", value))}
+                      />
+                    </div>
                     <input
                       type="text"
                       value={s.warning}
@@ -939,6 +1086,27 @@ export function AddGuideView({
         textarea.input { resize: vertical; }
       `}</style>
     </div>
+  );
+}
+
+function TranslateButton({
+  busy,
+  onClick,
+}: {
+  busy: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={busy}
+      className="inline-flex items-center gap-1 rounded-md border border-marine-accent/30 bg-marine-accent/5 px-2 py-1 text-[10px] font-semibold text-marine-accent hover:bg-marine-accent/15 disabled:opacity-50"
+      title="Translate this field to English"
+    >
+      {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <span>EN</span>}
+      {busy ? "Translating..." : "Translate to English"}
+    </button>
   );
 }
 
