@@ -11,7 +11,14 @@ export function resolveRemoteUrl(url: string): string {
   if (!url) return url;
   const value = url.trim();
   if (value.startsWith("http://") || value.startsWith("https://") || value.startsWith("data:") || value.startsWith("blob:")) return value;
-  if (value.startsWith("/")) return `${API_BASE_URL}${value}`;
+  if (value.startsWith("/")) {
+    const base =
+      typeof window !== "undefined"
+        ? window.location.origin
+        : API_BASE_URL;
+
+    return `${base}${value}`;
+  }
   return value;
 }
 

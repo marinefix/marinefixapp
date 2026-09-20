@@ -10,7 +10,7 @@ import {
   removeGuideOffline,
 } from "./offlineStorage";
 
-const API_BASE_URL = "https://marinefixapp.pages.dev";
+const API_BASE_URL = "";
 
 async function apiFetch<T>(
   endpoint: string,
@@ -385,6 +385,23 @@ export async function uploadImage(
     };
 
   return data.url;
+}
+
+// ============================================================
+// TRANSLATION
+// ============================================================
+
+export async function translateText(text: string): Promise<string> {
+  const response = await apiFetch<{ translatedText: string }>(
+    "/api/translate",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    }
+  );
+
+  return response.translatedText;
 }
 
 // ============================================================
