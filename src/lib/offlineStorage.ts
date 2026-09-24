@@ -1,3 +1,4 @@
+import { Capacitor } from "@capacitor/core";
 import type { GuideWithRelations } from "../types";
 
 const OFFLINE_GUIDES_KEY = "marine_offline_guides_data";
@@ -12,8 +13,14 @@ export function resolveRemoteUrl(url: string): string {
   const value = url.trim();
   if (value.startsWith("http://") || value.startsWith("https://") || value.startsWith("data:") || value.startsWith("blob:")) return value;
   if (value.startsWith("/")) {
-    const base =
-      typeof window !== "undefined"
+    // Capacitor Android can use an HTTPS WebView origin (for example
+    // https://localhost), so checking window.location.protocol is not
+    // reliable for deciding whether this is the native app.
+    const isNativeApp = Capacitor.isNativePlatform();
+
+    const base = isNativeApp
+      ? API_BASE_URL
+      : typeof window !== "undefined"
         ? window.location.origin
         : API_BASE_URL;
 

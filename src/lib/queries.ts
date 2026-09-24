@@ -10,7 +10,11 @@ import {
   removeGuideOffline,
 } from "./offlineStorage";
 
-const API_BASE_URL = "";
+import { Capacitor } from "@capacitor/core";
+
+const API_BASE_URL = Capacitor.isNativePlatform()
+  ? "https://marinefixapp.pages.dev"
+  : "";
 
 async function apiFetch<T>(
   endpoint: string,
