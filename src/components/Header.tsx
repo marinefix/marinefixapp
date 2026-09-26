@@ -1,17 +1,18 @@
 import { useEffect, useState } from "react";
 import {
-  Anchor,
   Bookmark,
   PlusCircle,
   ShieldAlert,
   Menu,
-  LogOut,
   Smartphone,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { SearchBar } from "./SearchBar";
 import { navigate } from "../lib/router";
 import { checkIsAdmin, logoutAdmin } from "../lib/adminAuth";
 import { AdminLoginModal } from "./AdminLoginModal";
+import { useTheme } from "../lib/theme";
 
 type HeaderProps = {
   onToggleMobileMenu?: () => void;
@@ -21,6 +22,7 @@ export function Header({ onToggleMobileMenu }: HeaderProps) {
   const [isAdmin, setIsAdmin] = useState(checkIsAdmin());
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [isApp, setIsApp] = useState(false);
+  const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
     const checkAppMode = () => {
@@ -103,6 +105,30 @@ export function Header({ onToggleMobileMenu }: HeaderProps) {
     }
   };
 
+  const themeButton = (
+    <button
+      type="button"
+      onClick={toggleTheme}
+      className="inline-flex items-center justify-center h-9 w-9 shrink-0 rounded-lg border border-marine-border bg-marine-card text-marine-text hover:border-marine-accent/50 transition cursor-pointer"
+      title={
+        theme === "light"
+          ? "Switch to Dark Blue theme"
+          : "Switch to Light theme"
+      }
+      aria-label={
+        theme === "light"
+          ? "Switch to Dark Blue theme"
+          : "Switch to Light theme"
+      }
+    >
+      {theme === "light" ? (
+        <Moon className="h-4 w-4" />
+      ) : (
+        <Sun className="h-4 w-4" />
+      )}
+    </button>
+  );
+
   return (
     <>
       <header className="sticky top-0 z-30 bg-marine-dark/95 backdrop-blur-md border-b border-marine-border">
@@ -123,15 +149,25 @@ export function Header({ onToggleMobileMenu }: HeaderProps) {
               className="flex items-center gap-2 text-marine-accent font-bold text-lg tracking-tight hover:opacity-90 transition cursor-pointer"
               title="Return to Home Dashboard"
             >
-              <Anchor className="h-6 w-6" />
-              <span className="text-marine-text font-extrabold">
-                MARINE FIX
+              <span
+                className="text-marine-accent text-2xl leading-none select-none"
+                aria-hidden="true"
+              >
+                ⚓
+              </span>
+
+              <span className="font-extrabold tracking-tight">
+                <span className="text-slate-900">MARINE</span>{" "}
+                <span className="text-blue-600">FIX</span>
               </span>
             </button>
           </div>
 
-          <div className="hidden md:block flex-1 max-w-xl mx-4">
-            <SearchBar />
+          <div className="hidden md:flex flex-1 min-w-0 max-w-2xl mx-4 items-center gap-2">
+            <div className="flex-1 min-w-0">
+              <SearchBar />
+            </div>
+            {themeButton}
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
@@ -181,8 +217,11 @@ export function Header({ onToggleMobileMenu }: HeaderProps) {
           </div>
         </div>
 
-        <div className="md:hidden px-4 pb-3">
-          <SearchBar />
+        <div className="md:hidden px-4 pb-3 flex items-center gap-2">
+          <div className="flex-1 min-w-0">
+            <SearchBar />
+          </div>
+          {themeButton}
         </div>
       </header>
 

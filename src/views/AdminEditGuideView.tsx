@@ -1018,15 +1018,15 @@ export function AdminEditGuideView({
         .input {
           width: 100%;
           border-radius: 0.5rem;
-          background-color: #0F172A !important;
-          border: 1px solid #334155;
+          background-color: rgb(var(--marine-input)) !important;
+          border: 1px solid rgb(var(--marine-border));
           padding: 0.6rem 0.85rem;
           font-size: 0.875rem;
-          color: #F8FAFC !important;
+          color: rgb(var(--marine-input-text)) !important;
           outline: none;
-          transition: border-color 0.15s, box-shadow 0.15s;
+          transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
         }
-        .input::placeholder { color: #64748B; }
+        .input::placeholder { color: rgb(var(--marine-input-placeholder)); }
         .input:focus {
           border-color: #0EA5E9;
           box-shadow: 0 0 0 2px rgba(14,165,233,0.4);

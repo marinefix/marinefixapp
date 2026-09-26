@@ -1059,26 +1059,26 @@ export function AddGuideView({
         .input {
           width: 100%;
           border-radius: 0.5rem;
-          background-color: #0F172A !important;
-          border: 1px solid #334155;
+          background-color: rgb(var(--marine-input)) !important;
+          border: 1px solid rgb(var(--marine-border));
           padding: 0.6rem 0.85rem;
           font-size: 0.875rem;
-          color: #F8FAFC !important;
+          color: rgb(var(--marine-input-text)) !important;
           outline: none;
-          transition: border-color 0.15s, box-shadow 0.15s;
+          transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
         }
         
         .input:-webkit-autofill,
         .input:-webkit-autofill:hover, 
         .input:-webkit-autofill:focus, 
         .input:-webkit-autofill:active {
-          -webkit-box-shadow: 0 0 0 1000px #0F172A inset !important;
-          -webkit-text-fill-color: #F8FAFC !important;
-          caret-color: #F8FAFC !important;
+          -webkit-box-shadow: 0 0 0 1000px rgb(var(--marine-input)) inset !important;
+          -webkit-text-fill-color: rgb(var(--marine-input-text)) !important;
+          caret-color: rgb(var(--marine-input-text)) !important;
           transition: background-color 50000s ease-in-out 0s;
         }
 
-        .input::placeholder { color: #64748B; }
+        .input::placeholder { color: rgb(var(--marine-input-placeholder)); }
         .input:focus {
           border-color: #0EA5E9;
           box-shadow: 0 0 0 2px rgba(14,165,233,0.4);
@@ -1101,7 +1101,7 @@ function TranslateButton({
       type="button"
       onClick={onClick}
       disabled={busy}
-      className="inline-flex items-center gap-1 rounded-md border border-marine-accent/30 bg-marine-accent/5 px-2 py-1 text-[10px] font-semibold text-marine-accent hover:bg-marine-accent/15 disabled:opacity-50"
+      className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-marine-accent/30 bg-marine-accent/5 px-2 py-1 text-[10px] font-semibold text-marine-accent hover:bg-marine-accent/15 disabled:opacity-50"
       title="Translate this field to English"
     >
       {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <span>EN</span>}

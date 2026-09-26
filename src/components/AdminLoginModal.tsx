@@ -42,7 +42,7 @@ export function AdminLoginModal({ isOpen, onClose, onSuccess }: Props) {
         <div className="flex justify-between items-center pb-2 border-b border-slate-800">
           <div className="flex items-center gap-2">
             <ShieldAlert className="h-5 w-5 text-amber-400" />
-            <h3 className="font-bold text-sm text-slate-100">Admin Mode</h3>
+            <h3 className="font-bold text-sm text-white">Admin Mode</h3>
           </div>
 
           <button

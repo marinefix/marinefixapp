@@ -2,6 +2,46 @@
 @tailwind components;
 @tailwind utilities;
 
+:root,
+[data-theme="light"] {
+  --marine-base: 248 250 252;
+  --marine-card: 255 255 255;
+  --marine-hover: 241 245 249;
+  --marine-border: 226 232 240;
+  --marine-text: 15 23 42;
+  --marine-muted: 100 116 139;
+  --marine-accent: 2 132 199;
+  --marine-accent-hover: 3 105 161;
+  --marine-dark: 255 255 255;
+  --marine-input: 255 255 255;
+  --marine-input-text: 15 23 42;
+  --marine-input-placeholder: 100 116 139;
+  --marine-warn: 245 158 11;
+  --marine-warn-hover: 217 119 6;
+  --marine-success: 16 185 129;
+  --marine-error: 239 68 68;
+}
+
+[data-theme="dark"] {
+  --marine-base: 15 23 42;
+  --marine-card: 30 41 59;
+  --marine-hover: 51 65 85;
+  --marine-border: 51 65 85;
+  --marine-text: 248 250 252;
+  --marine-muted: 148 163 184;
+  --marine-accent: 14 165 233;
+  --marine-accent-hover: 2 132 199;
+  --marine-dark: 2 6 23;
+  --marine-input: 51 65 85;
+  --marine-input-text: 248 250 252;
+  --marine-input-placeholder: 148 163 184;
+  --marine-warn: 245 158 11;
+  --marine-warn-hover: 217 119 6;
+  --marine-success: 16 185 129;
+  --marine-error: 239 68 68;
+}
+
+
 @layer base {
   *,
   *::before,
@@ -56,6 +96,59 @@
 * {
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+/* --------------------------------------------------------------------------
+   Global two-theme bridge
+   Existing pages use a mix of MarineFix semantic colors and Tailwind slate/
+   blue utility colors. These mappings keep those legacy utilities readable
+   when the user switches the global theme.
+   -------------------------------------------------------------------------- */
+
+[data-theme="light"] [class~="bg-slate-950"] { background-color: rgb(248 250 252) !important; }
+[data-theme="light"] [class~="bg-slate-900"] { background-color: rgb(255 255 255) !important; }
+[data-theme="light"] [class~="bg-slate-800"] { background-color: rgb(241 245 249) !important; }
+[data-theme="light"] [class~="bg-slate-700"] { background-color: rgb(226 232 240) !important; }
+[data-theme="light"] [class~="text-slate-100"],
+[data-theme="light"] [class~="text-slate-200"] { color: rgb(15 23 42) !important; }
+[data-theme="light"] [class~="text-slate-300"],
+[data-theme="light"] [class~="text-slate-400"] { color: rgb(100 116 139) !important; }
+[data-theme="light"] [class~="border-slate-700"],
+[data-theme="light"] [class~="border-slate-800"] { border-color: rgb(226 232 240) !important; }
+
+[data-theme="dark"] [class~="bg-white"] { background-color: rgb(30 41 59) !important; }
+[data-theme="dark"] [class~="bg-slate-50"],
+[data-theme="dark"] [class~="bg-slate-100"] { background-color: rgb(15 23 42) !important; }
+[data-theme="dark"] [class~="bg-slate-200"] { background-color: rgb(51 65 85) !important; }
+[data-theme="dark"] [class~="text-slate-900"],
+[data-theme="dark"] [class~="text-slate-800"],
+[data-theme="dark"] [class~="text-slate-700"] { color: rgb(226 232 240) !important; }
+[data-theme="dark"] [class~="text-slate-600"],
+[data-theme="dark"] [class~="text-slate-500"],
+[data-theme="dark"] [class~="text-slate-400"] { color: rgb(148 163 184) !important; }
+[data-theme="dark"] [class~="border-slate-200"],
+[data-theme="dark"] [class~="border-slate-300"] { border-color: rgb(51 65 85) !important; }
+[data-theme="dark"] [class~="bg-blue-50"] { background-color: rgb(14 165 233 / 0.10) !important; }
+[data-theme="dark"] [class~="bg-blue-100"] { background-color: rgb(14 165 233 / 0.16) !important; }
+[data-theme="dark"] [class~="border-blue-100"],
+[data-theme="dark"] [class~="border-blue-200"],
+[data-theme="dark"] [class~="border-blue-300"] { border-color: rgb(14 165 233 / 0.30) !important; }
+[data-theme="dark"] [class~="bg-emerald-50"] { background-color: rgb(16 185 129 / 0.10) !important; }
+[data-theme="dark"] [class~="bg-amber-50"] { background-color: rgb(245 158 11 / 0.10) !important; }
+[data-theme="dark"] [class~="bg-orange-50"] { background-color: rgb(249 115 22 / 0.14) !important; }
+[data-theme="dark"] [class~="border-orange-100"] { border-color: rgb(249 115 22 / 0.28) !important; }
+[data-theme="dark"] [class~="bg-slate-300"] { background-color: rgb(100 116 139) !important; }
+
+[data-theme="dark"] input,
+[data-theme="dark"] textarea,
+[data-theme="dark"] select {
+  color-scheme: dark;
+}
+
+[data-theme="light"] input,
+[data-theme="light"] textarea,
+[data-theme="light"] select {
+  color-scheme: light;
 }
 
 @layer utilities {

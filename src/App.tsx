@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { App as CapacitorApp } from "@capacitor/app";
 import { useRoute } from "./lib/router";
 import {
   fetchCategories,
@@ -12,6 +13,7 @@ import { Sidebar } from "./components/Sidebar";
 import { Footer } from "./components/Footer";
 import { HomeView } from "./views/HomeView";
 import { CategoryView } from "./views/CategoryView";
+import { CategoriesView } from "./views/CategoriesView";
 import { EquipmentView } from "./views/EquipmentView";
 import { GuideView } from "./views/GuideView";
 import { BookmarksView } from "./views/BookmarksView";
@@ -64,12 +66,30 @@ export function App() {
   const [bookmarkIds, setBookmarkIds] = useState<string[]>([]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+
   useEffect(() => {
     trackUsage(window.location.pathname);
   }, [route]);
 
+  // Android system Back button
+  useEffect(() => {
+    const listener = CapacitorApp.addListener(
+      "backButton",
+      ({ canGoBack }) => {
+        if (canGoBack) {
+          window.history.back();
+        } else {
+          CapacitorApp.exitApp();
+        }
+      }
+    );
+
+    return () => {
+      listener.then((handle) => handle.remove());
+    };
+  }, []);
+
   // Lock the background page while the mobile Departments drawer is open.
-  // This keeps only the drawer content scrollable on mobile.
   useEffect(() => {
     if (!mobileMenuOpen) return;
 
@@ -94,7 +114,6 @@ export function App() {
   useEffect(() => {
     let active = true;
 
-    // Load latest online data.
     fetchCategories()
       .then((data) => {
         if (!active) return;
@@ -102,18 +121,9 @@ export function App() {
         writeCache(CATEGORIES_CACHE_KEY, data);
       })
       .catch((err) => {
-        console.warn(
-          "Categories unavailable, using offline cache:",
-          err
-        );
-
+        console.warn("Categories unavailable, using offline cache:", err);
         if (active) {
-          setCategories(
-            readCache<Category[]>(
-              CATEGORIES_CACHE_KEY,
-              []
-            )
-          );
+          setCategories(readCache<Category[]>(CATEGORIES_CACHE_KEY, []));
         }
       });
 
@@ -124,18 +134,9 @@ export function App() {
         writeCache(EQUIPMENT_CACHE_KEY, data);
       })
       .catch((err) => {
-        console.warn(
-          "Equipment unavailable, using offline cache:",
-          err
-        );
-
+        console.warn("Equipment unavailable, using offline cache:", err);
         if (active) {
-          setEquipment(
-            readCache<Equipment[]>(
-              EQUIPMENT_CACHE_KEY,
-              []
-            )
-          );
+          setEquipment(readCache<Equipment[]>(EQUIPMENT_CACHE_KEY, []));
         }
       });
 
@@ -146,26 +147,15 @@ export function App() {
         writeCache(GUIDES_CACHE_KEY, data);
       })
       .catch((err) => {
-        console.warn(
-          "Guides unavailable, using offline cache:",
-          err
-        );
-
+        console.warn("Guides unavailable, using offline cache:", err);
         if (active) {
-          setGuides(
-            readCache<Guide[]>(
-              GUIDES_CACHE_KEY,
-              []
-            )
-          );
+          setGuides(readCache<Guide[]>(GUIDES_CACHE_KEY, []));
         }
       });
 
     fetchBookmarkIds()
       .then((ids) => {
-        if (active) {
-          setBookmarkIds(ids);
-        }
+        if (active) setBookmarkIds(ids);
       })
       .catch((err) => {
         console.warn("Bookmarks unavailable:", err);
@@ -204,57 +194,44 @@ export function App() {
 
   const selectedCategory =
     route.name === "category"
-      ? categories.find(
-          (c) => c.id === (route as any).id
-        )
+      ? categories.find((c) => c.id === (route as any).id)
       : undefined;
 
   return (
-    <div className="min-h-screen flex flex-col bg-marine-base text-marine-text font-sans antialiased selection:bg-marine-accent selection:text-marine-base">
+    <div className="min-h-screen flex flex-col bg-marine-base text-marine-text font-sans antialiased selection:bg-marine-accent/30 selection:text-marine-text">
       <Header
         onToggleMobileMenu={() =>
           setMobileMenuOpen((prev) => !prev)
         }
       />
 
-      <div className="flex-1 flex w-full relative items-stretch">
-        <div className="hidden md:block shrink-0 border-r border-marine-border bg-marine-card/50">
-          <div className="sticky top-16 max-h-[calc(100vh-4rem)] overflow-y-auto pr-1">
-            <Sidebar
-              categories={categories}
-              equipment={equipment}
-              guidesCounts={guidesCounts}
-              isOpen={mobileMenuOpen}
-              onClose={() =>
-                setMobileMenuOpen(false)
-              }
-            />
-          </div>
-        </div>
+      <div className="flex-1 flex w-full relative items-start bg-marine-base">
+        <Sidebar
+          categories={categories}
+          equipment={equipment}
+          guidesCounts={guidesCounts}
+          isOpen={mobileMenuOpen}
+          onClose={() => setMobileMenuOpen(false)}
+        />
 
-        <div className="md:hidden">
-          <Sidebar
-            categories={categories}
-            equipment={equipment}
-            guidesCounts={guidesCounts}
-            isOpen={mobileMenuOpen}
-            onClose={() =>
-              setMobileMenuOpen(false)
-            }
-          />
-        </div>
-
-        <main className="flex-1 min-w-0 pb-12">
+        <main className="flex-1 min-w-0 pb-12 bg-marine-base text-marine-text">
           {route.name === "home" && (
             <HomeView
               categories={categories}
               equipment={equipment}
               totalGuides={guides.length}
+              guides={guides}
             />
           )}
 
-          {route.name === "feedback" && (
-            <FeedbackView />
+          {route.name === "feedback" && <FeedbackView />}
+
+          {route.name === "categories" && (
+            <CategoriesView
+              categories={categories}
+              equipment={equipment}
+              guides={guides}
+            />
           )}
 
           {route.name === "category" && (
@@ -275,24 +252,18 @@ export function App() {
           {route.name === "guide" && (
             <GuideView
               guideId={(route as any).id}
-              isBookmarked={bookmarkIds.includes(
-                (route as any).id
-              )}
+              isBookmarked={bookmarkIds.includes((route as any).id)}
               onBookmarkChange={handleBookmarkChange}
             />
           )}
 
           {route.name === "bookmarks" && (
-            <BookmarksView
-              onBookmarkChange={handleBookmarkChange}
-            />
+            <BookmarksView onBookmarkChange={handleBookmarkChange} />
           )}
 
           {route.name === "add-guide" && (
             <AddGuideView
-              equipmentId={
-                (route as any).equipmentId
-              }
+              equipmentId={(route as any).equipmentId}
               categories={categories}
               equipment={equipment}
             />

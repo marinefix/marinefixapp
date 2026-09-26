@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import { Activity, Globe2, Smartphone, Users, RefreshCw } from "lucide-react";
 
-const API_BASE_URL = "https://marinefixapp.pages.dev";
-
 type AnalyticsData = {
   totals: { web_visitors: number; app_users: number; app_first_launches: number; total_sessions: number };
   recent30Days: { web_visitors: number; app_users: number; app_first_launches: number; sessions: number };
@@ -19,7 +17,7 @@ export function AnalyticsView() {
   async function load() {
     try {
       setLoading(true); setError("");
-      const response = await fetch(`${API_BASE_URL}/api/analytics`, { credentials: "include", cache: "no-store" });
+      const response = await fetch("/api/analytics", { credentials: "include", cache: "no-store" });
       if (!response.ok) throw new Error(response.status === 401 ? "Admin session expired." : "Failed to load analytics.");
       setData(await response.json());
     } catch (err) {

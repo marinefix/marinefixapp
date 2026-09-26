@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 
 export type Route =
   | { name: "home" }
+  | { name: "categories" }
   | { name: "category"; id: string }
   | { name: "equipment"; id: string }
   | { name: "guide"; id: string }
@@ -18,6 +19,9 @@ export function parsePath(pathname: string): Route {
   const path = pathname.replace(/\/+$/, "") || "/";
 
   if (path === "/") return { name: "home" };
+
+  if (path === "/categories")
+    return { name: "categories" };
 
   if (path === "/bookmarks")
     return { name: "bookmarks" };
@@ -114,6 +118,9 @@ export function routeToPath(route: Route): string {
       return `/guide/${encodeURIComponent(
         route.id
       )}`;
+
+    case "categories":
+      return "/categories";
 
     case "bookmarks":
       return "/bookmarks";
