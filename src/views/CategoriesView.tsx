@@ -4,22 +4,22 @@ import type { Category, Equipment, Guide } from "../types";
 import { navigate } from "../lib/router";
 
 const categoryImages: Record<string, string> = {
-  "bridge-navigation": "/equipment/bridge-navigation-systems.png",
-  "deck-machinery": "/equipment/deck-machinery.png",
-  "ballast-systems": "/equipment/ballast-systems.png",
-  "main-engine": "/equipment/main-engine.png",
-  "auxiliary-engine-generator": "/equipment/generator.png",
-  purifiers: "/equipment/purifier.png",
-  boilers: "/equipment/boiler.png",
-  compressors: "/equipment/compressor.png",
-  pumps: "/equipment/pump.png",
-  "auxiliary-systems": "/equipment/auxiliary-systems.png",
-  "power-generation": "/equipment/electrical.png",
-  "instrumentation-control": "/equipment/instrumentation-control.png",
-  "safety-fire-protection": "/equipment/safety-fire-protection.png",
-  "accommodation-electricals": "/equipment/hvac.png",
-  "reefer-systems": "/equipment/reefer-systems.png",
-  "others-general-machinery": "/equipment/others-general-machinery.png",
+  "bridge-navigation": "/optimized/equipment/bridge-navigation-systems.webp",
+  "deck-machinery": "/optimized/equipment/deck-machinery.webp",
+  "ballast-systems": "/optimized/equipment/ballast-systems.webp",
+  "main-engine": "/optimized/equipment/main-engine.webp",
+  "auxiliary-engine-generator": "/optimized/equipment/generator.webp",
+  purifiers: "/optimized/equipment/purifier.webp",
+  boilers: "/optimized/equipment/boiler.webp",
+  compressors: "/optimized/equipment/compressor.webp",
+  pumps: "/optimized/equipment/pump.webp",
+  "auxiliary-systems": "/optimized/equipment/auxiliary-systems.webp",
+  "power-generation": "/optimized/equipment/electrical.webp",
+  "instrumentation-control": "/optimized/equipment/instrumentation-control.webp",
+  "safety-fire-protection": "/optimized/equipment/safety-fire-protection.webp",
+  "accommodation-electricals": "/optimized/equipment/hvac.webp",
+  "reefer-systems": "/optimized/equipment/reefer-systems.webp",
+  "others-general-machinery": "/optimized/equipment/others-general-machinery.webp",
 };
 
 type Props = {
@@ -82,7 +82,7 @@ export function CategoriesView({ categories, equipment, guides }: Props) {
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {rootCategories.map((category) => {
-            const image = categoryImages[category.slug] || "/equipment/main-engine.png";
+            const image = categoryImages[category.slug] || "/optimized/equipment/main-engine.webp";
             const count = categoryGuideCount(category.id);
 
             return (
@@ -96,6 +96,8 @@ export function CategoriesView({ categories, equipment, guides }: Props) {
                   <img
                     src={image}
                     alt={category.name}
+                    loading="lazy"
+                    decoding="async"
                     className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                   />
                 </div>

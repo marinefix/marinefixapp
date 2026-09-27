@@ -1,29 +1,29 @@
 {
-    "short_name": "MarineFix",
-    "name": "Marine Fix - Troubleshooting Knowledge Base",
-    "description": "Marine engineering troubleshooting guides, diagnostic steps, and safety procedures.",
-    "icons": [
-      {
-        "src": "/anchor.svg",
-        "sizes": "192x192 512x512",
-        "type": "image/svg+xml",
-        "purpose": "any maskable"
-      },
-      {
-        "src": "/boiler.png",
-        "sizes": "192x192",
-        "type": "image/png"
-      },
-      {
-        "src": "/motor.png",
-        "sizes": "512x512",
-        "type": "image/png"
-      }
-    ],
-    "start_url": "/",
-    "background_color": "#0f172a",
-    "theme_color": "#0f172a",
-    "display": "standalone",
-    "orientation": "portrait",
-    "scope": "/"
-  }
+  "short_name": "MarineFix",
+  "name": "Marine Fix - Troubleshooting Knowledge Base",
+  "description": "Marine engineering troubleshooting guides, diagnostic steps, and safety procedures.",
+  "icons": [
+    {
+      "src": "/optimized/anchor.webp",
+      "sizes": "512x512",
+      "type": "image/webp",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/boiler.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/motor.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "display": "standalone",
+  "orientation": "portrait",
+  "scope": "/"
+}

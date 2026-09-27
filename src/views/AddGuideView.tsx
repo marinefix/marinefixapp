@@ -59,7 +59,7 @@ const DEFAULT_PPE = [
 ];
 
 // Helper: Compress & Convert Images to WebP (10MB -> ~150KB) on the browser side
-async function compressImageFile(file: File, maxWidth = 1280, quality = 0.75): Promise<File> {
+async function compressImageFile(file: File, maxWidth = 1024, quality = 0.70): Promise<File> {
   if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
     return file;
   }

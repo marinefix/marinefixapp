@@ -163,6 +163,8 @@ export function EquipmentView({
               <img
                 src={equipment.image_url}
                 alt={equipment.name}
+                loading="lazy"
+                decoding="async"
                 className="w-full h-40 md:h-32 object-cover"
               />
             </div>

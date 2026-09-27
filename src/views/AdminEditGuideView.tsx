@@ -76,8 +76,8 @@ function parseAttachment(value: any): Attachment | null {
 
 async function compressImageFile(
   file: File,
-  maxWidth = 1280,
-  quality = 0.75
+  maxWidth = 1024,
+  quality = 0.70
 ): Promise<File> {
   if (
     file.type === "application/pdf" ||

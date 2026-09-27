@@ -18,7 +18,6 @@ import {
 import type { Category, Equipment, Guide } from "../types";
 import { navigate } from "../lib/router";
 import { Capacitor } from "@capacitor/core";
-import { resolveRemoteUrl } from "../lib/offlineStorage";
 import { searchAll, type SearchResult } from "../lib/queries";
 
 type Props = {
@@ -29,18 +28,36 @@ type Props = {
 };
 
 const popularCategoryCards = [
-  { label: "Main Engine", slug: "main-engine", img: "/equipment/main-engine.png" },
-  { label: "Generators", slug: "auxiliary-engine-generator", img: "/equipment/generator.png" },
-  { label: "Boiler", slug: "boilers", img: "/equipment/boiler.png" },
-  { label: "Pumps", slug: "pumps", img: "/equipment/pump.png" },
-  { label: "Compressors", slug: "compressors", img: "/equipment/compressor.png" },
-  { label: "Purifiers", slug: "purifiers", img: "/equipment/purifier.png" },
-  { label: "Electrical", slug: "power-generation", img: "/equipment/electrical.png" },
-  { label: "HVAC", slug: "accommodation-electricals", img: "/equipment/hvac.png" },
-  { label: "Steering Gear", slug: "deck-machinery", img: "/equipment/steering-gear.png" },
+  { label: "Main Engine", slug: "main-engine", img: "/optimized/equipment/main-engine.webp" },
+  { label: "Generators", slug: "auxiliary-engine-generator", img: "/optimized/equipment/generator.webp" },
+  { label: "Boiler", slug: "boilers", img: "/optimized/equipment/boiler.webp" },
+  { label: "Pumps", slug: "pumps", img: "/optimized/equipment/pump.webp" },
+  { label: "Compressors", slug: "compressors", img: "/optimized/equipment/compressor.webp" },
+  { label: "Purifiers", slug: "purifiers", img: "/optimized/equipment/purifier.webp" },
+  { label: "Electrical", slug: "power-generation", img: "/optimized/equipment/electrical.webp" },
+  { label: "HVAC", slug: "accommodation-electricals", img: "/optimized/equipment/hvac.webp" },
+  { label: "Steering Gear", slug: "deck-machinery", img: "/optimized/equipment/steering-gear.webp" },
 ];
 
-const recentGuideFallbackImages = popularCategoryCards.map((item) => item.img);
+const categoryImages: Record<string, string> = {
+  "bridge-navigation": "/optimized/equipment/bridge-navigation-systems.webp",
+  "deck-machinery": "/optimized/equipment/deck-machinery.webp",
+  "ballast-systems": "/optimized/equipment/ballast-systems.webp",
+  "main-engine": "/optimized/equipment/main-engine.webp",
+  "auxiliary-engine-generator": "/optimized/equipment/generator.webp",
+  purifiers: "/optimized/equipment/purifier.webp",
+  boilers: "/optimized/equipment/boiler.webp",
+  compressors: "/optimized/equipment/compressor.webp",
+  pumps: "/optimized/equipment/pump.webp",
+  "auxiliary-systems": "/optimized/equipment/auxiliary-systems.webp",
+  "power-generation": "/optimized/equipment/electrical.webp",
+  "instrumentation-control": "/optimized/equipment/instrumentation-control.webp",
+  "safety-fire-protection": "/optimized/equipment/safety-fire-protection.webp",
+  "accommodation-electricals": "/optimized/equipment/hvac.webp",
+  "reefer-systems": "/optimized/equipment/reefer-systems.webp",
+  "others-general-machinery": "/optimized/equipment/others-general-machinery.webp",
+};
+
 
 export function HomeView({
   categories,
@@ -190,7 +207,7 @@ export function HomeView({
             <div className="absolute inset-0 overflow-hidden rounded-xl">
               <div
                 className="absolute inset-0 bg-cover bg-center"
-                style={{ backgroundImage: "url('/hero-bg.png')" }}
+                style={{ backgroundImage: "url('/optimized/hero-bg.webp')" }}
               />
 
               <div className="absolute inset-0 bg-gradient-to-r from-[#062044]/95 via-[#062044]/78 to-[#062044]/18" />
@@ -441,6 +458,8 @@ export function HomeView({
                     <img
                       src={item.img}
                       alt={item.label}
+                      loading="lazy"
+                      decoding="async"
                       className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
                   </div>
@@ -468,15 +487,21 @@ export function HomeView({
 
             {recentGuides.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
-                {recentGuides.map((guide, index) => {
-                  const image = guide.image_url
-                    ? resolveRemoteUrl(guide.image_url)
-                    : recentGuideFallbackImages[index % recentGuideFallbackImages.length];
+                {recentGuides.map((guide) => {
+                  const guideEquipment = equipment.find(
+                    (e) => e.id === guide.equipment_id
+                  );
+                  const guideCategory = guideEquipment
+                    ? categories.find((c) => c.id === guideEquipment.category_id)
+                    : undefined;
+
+                  // Use the department image for the equipment that owns this guide.
+                  const image =
+                    (guideCategory && categoryImages[guideCategory.slug]) ||
+                    "/optimized/equipment/others-general-machinery.webp";
 
                   const equipmentName =
-                    equipment.find(
-                      (e) => e.id === guide.equipment_id
-                    )?.name || "Marine Equipment";
+                    guideEquipment?.name || "Marine Equipment";
 
                   return (
                     <button
@@ -494,6 +519,8 @@ export function HomeView({
                         <img
                           src={image}
                           alt={guide.title}
+                          loading="lazy"
+                          decoding="async"
                           className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
                         />
                       </div>
