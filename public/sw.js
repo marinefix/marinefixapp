@@ -1,4 +1,4 @@
-const CACHE_NAME = 'marine-fix-v8';
+﻿const CACHE_NAME = 'marine-fix-v9';
 const OPTIONAL_ASSETS = [
   '/manifest.json',
   '/anchor.svg',
@@ -83,13 +83,8 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return;
   if (url.pathname.endsWith('.apk') || url.pathname.includes('MarineFix.apk')) return;
 
-  if (url.pathname.startsWith('/api/')) {
-    event.respondWith(fetch(request).catch(() => new Response(
-      JSON.stringify({ success: false, error: 'Network unavailable. Check your connection and retry.' }),
-      { status: 503, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } }
-    )));
-    return;
-  }
+  // Let API requests pass through without Service Worker interception.
+  if (url.pathname.startsWith('/api/')) return;
 
   event.respondWith((async () => {
     const cache = await caches.open(CACHE_NAME);
@@ -157,3 +152,5 @@ self.addEventListener('fetch', (event) => {
     }
   })());
 });
+
+
