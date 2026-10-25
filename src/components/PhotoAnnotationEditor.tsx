@@ -295,10 +295,10 @@ export function PhotoAnnotationEditor({ file, onDone, onSkip }: Props) {
         </label>
       </div>
 
-      <div className="rounded-xl border border-marine-border bg-black/50 p-2 overflow-hidden flex items-center justify-center">
+      <div className="rounded-xl border border-marine-border bg-black/50 p-2 h-[58vh] min-h-[240px] overflow-hidden flex items-center justify-center">
         <canvas
           ref={canvasRef}
-          className="max-w-full max-h-[60vh] w-auto h-auto object-contain touch-none cursor-crosshair"
+          className="block max-w-full max-h-full w-auto h-auto object-contain touch-none cursor-crosshair"
           onPointerDown={begin}
           onPointerMove={move}
           onPointerUp={end}
