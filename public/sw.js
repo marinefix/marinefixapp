@@ -1,20 +1,41 @@
-const CACHE_NAME = 'marine-fix-v6';
+const CACHE_NAME = 'marine-fix-v7';
 const OPTIONAL_ASSETS = [
   '/manifest.json',
   '/anchor.svg',
   '/boiler.png',
   '/motor.png',
   '/optimized/anchor.webp',
-  '/optimized/hero-bg.webp'
+  '/optimized/hero-bg.webp',
+  '/optimized/equipment/auxiliary-systems.webp',
+  '/optimized/equipment/ballast-systems.webp',
+  '/optimized/equipment/boiler.webp',
+  '/optimized/equipment/bridge-navigation-systems.webp',
+  '/optimized/equipment/compressor.webp',
+  '/optimized/equipment/deck-machinery.webp',
+  '/optimized/equipment/electrical.webp',
+  '/optimized/equipment/generator.webp',
+  '/optimized/equipment/hvac.webp',
+  '/optimized/equipment/instrumentation-control.webp',
+  '/optimized/equipment/main-engine.webp',
+  '/optimized/equipment/others-general-machinery.webp',
+  '/optimized/equipment/pump.webp',
+  '/optimized/equipment/purifier.webp',
+  '/optimized/equipment/reefer-systems.webp',
+  '/optimized/equipment/safety-fire-protection.webp',
+  '/optimized/equipment/steering-gear.webp'
 ];
+
+const isStaticAsset = (pathname) =>
+  pathname.startsWith('/assets/') ||
+  pathname.startsWith('/optimized/') ||
+  /\.(?:png|jpe?g|webp|gif|avif|svg|ico|woff2?)$/i.test(pathname);
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE_NAME);
 
-    // Do not activate a new worker unless the current app shell and its built
-    // JS/CSS can be cached. This prevents a partial deployment from deleting
-    // the last usable cache and producing a blank page during a brief outage.
+    // The HTML and its current JS/CSS are required. If these cannot be fetched,
+    // leave the existing active worker in place rather than activate a partial app.
     const htmlResponse = await fetch('/index.html', { cache: 'reload' });
     if (!htmlResponse.ok) throw new Error(`App shell fetch failed: ${htmlResponse.status}`);
     const html = await htmlResponse.clone().text();
@@ -32,14 +53,14 @@ self.addEventListener('install', (event) => {
       await cache.put(assetUrl, response);
     }
 
+    // Images are optional: cache every image that is available, but do not block install.
     await Promise.all(OPTIONAL_ASSETS.map(async (asset) => {
       try {
         const response = await fetch(asset, { cache: 'reload' });
-        if (response.ok) await cache.put(asset, response);
-      } catch (_) {
-        // Optional images must not block worker installation.
-      }
+        if (response.ok && response.type !== 'opaque') await cache.put(asset, response);
+      } catch (_) {}
     }));
+
     await self.skipWaiting();
   })());
 });
@@ -62,7 +83,6 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return;
   if (url.pathname.endsWith('.apk') || url.pathname.includes('MarineFix.apk')) return;
 
-  // Never cache or disguise API writes/reads as successful responses.
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(fetch(request).catch(() => new Response(
       JSON.stringify({ success: false, error: 'Network unavailable. Check your connection and retry.' }),
@@ -73,11 +93,29 @@ self.addEventListener('fetch', (event) => {
 
   event.respondWith((async () => {
     const cache = await caches.open(CACHE_NAME);
+
+    // App JS/CSS and local images use cache-first so weak connections do not
+    // turn the page white or leave the category images broken after first load.
+    if (isStaticAsset(url.pathname)) {
+      const cached = await cache.match(request) || await caches.match(request);
+      if (cached) return cached;
+      try {
+        const response = await fetch(request);
+        if (response.ok && response.type !== 'opaque') await cache.put(request, response.clone()).catch(() => {});
+        return response;
+      } catch (_) {
+        return new Response('This MarineFix resource is not cached yet. Reconnect and reload to download it.', {
+          status: 503,
+          headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' }
+        });
+      }
+    }
+
+    // HTML/navigation and other same-origin GET requests are network-first,
+    // with an explicit Response fallback in every failure path.
     try {
       const response = await fetch(request);
-      if (response && response.ok && response.type !== 'opaque') {
-        event.waitUntil(cache.put(request, response.clone()).catch(() => {}));
-      }
+      if (response.ok && response.type !== 'opaque') await cache.put(request, response.clone()).catch(() => {});
       return response;
     } catch (_) {
       const cached = await cache.match(request) || await caches.match(request);
