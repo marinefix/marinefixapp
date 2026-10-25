@@ -24,16 +24,25 @@ async function apiFetch<T>(
     ? endpoint
     : `${API_BASE_URL}${endpoint}`;
 
-  const res = await fetch(url, options);
+  let res: Response;
+  try {
+    res = await fetch(url, options);
+  } catch {
+    throw new Error(
+      "Connection lost or the server could not be reached. Your guide draft is saved on this device when local storage is available. Check your connection and try again."
+    );
+  }
 
   if (!res.ok) {
-    const errText = await res.text().catch(
-      () => "Unknown error"
-    );
-
-    throw new Error(
-      errText || `API error: ${res.status}`
-    );
+    const errText = await res.text().catch(() => "");
+    let message = errText;
+    try {
+      const parsed = JSON.parse(errText) as { error?: string; message?: string };
+      message = parsed.error || parsed.message || errText;
+    } catch {
+      // Plain-text API errors are also supported.
+    }
+    throw new Error(message || `The server returned an error (${res.status}). Please try again.`);
   }
 
   return res.json();
@@ -358,37 +367,47 @@ export async function removeBookmark(
 // UPLOAD
 // ============================================================
 
-export async function uploadImage(
-  file: File
-): Promise<string> {
-  const formData =
-    new FormData();
+const uploadedFileUrls = new Map<string, string>();
 
-  formData.append(
-    "file",
-    file
-  );
+function uploadFileFingerprint(file: File): string {
+  return `${file.name}:${file.size}:${file.type}:${file.lastModified}`;
+}
 
-  const res = await fetch(
-    `${API_BASE_URL}/api/upload`,
-    {
-      method: "POST",
-      body: formData,
+class PermanentUploadError extends Error {}
+
+export async function uploadImage(file: File): Promise<string> {
+  const fingerprint = uploadFileFingerprint(file);
+  const cachedUrl = uploadedFileUrls.get(fingerprint);
+  if (cachedUrl) return cachedUrl;
+
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch(`${API_BASE_URL}/api/upload`, { method: "POST", body: formData });
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        const message = (() => {
+          try { return (JSON.parse(body) as { error?: string }).error || body; }
+          catch { return body; }
+        })();
+        if (res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429) {
+          throw new PermanentUploadError(message || `Upload failed (${res.status})`);
+        }
+        throw new Error(message || `Upload failed (${res.status})`);
+      }
+      const data = (await res.json()) as { url?: string };
+      if (!data.url) throw new Error("Upload response did not include a file URL");
+      uploadedFileUrls.set(fingerprint, data.url);
+      return data.url;
+    } catch (error) {
+      if (error instanceof PermanentUploadError) throw error;
+      if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, 700 * (2 ** attempt)));
     }
-  );
-
-  if (!res.ok) {
-    throw new Error(
-      "Failed to upload image to R2"
-    );
   }
-
-  const data =
-    (await res.json()) as {
-      url: string;
-    };
-
-  return data.url;
+  throw new Error(
+    "Attachment upload could not finish because the connection or server is unavailable. Your guide draft and selected files are saved on this device when browser storage is available. Check your connection and press Submit Guide to retry."
+  );
 }
 
 // ============================================================
@@ -413,6 +432,7 @@ export async function translateText(text: string): Promise<string> {
 // ============================================================
 
 export async function createGuide(input: {
+  id?: string;
   equipment_id: string;
   title: string;
   author_email?: string;

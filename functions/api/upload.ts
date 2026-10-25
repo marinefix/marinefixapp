@@ -78,14 +78,22 @@ export const onRequestPost: PagesFunction<Env> = async ({
 
     const safeExtension = extension.replace(/[^a-z0-9.]/g, "");
 
-    const key = `${crypto.randomUUID()}${safeExtension}`;
-
-    await env.STORAGE.put(key, file.stream(), {
-      httpMetadata: {
-        contentType: file.type,
-        cacheControl: "public, max-age=31536000, immutable",
-      },
-    });
+    // Content-addressed storage makes retrying an upload idempotent: if the
+    // server stored the object but its response was lost, the retry reuses it.
+    const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+    const hash = Array.from(new Uint8Array(digest))
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("");
+    const key = `${hash}${safeExtension}`;
+    const existing = await env.STORAGE.head(key);
+    if (!existing) {
+      await env.STORAGE.put(key, file.stream(), {
+        httpMetadata: {
+          contentType: file.type,
+          cacheControl: "public, max-age=31536000, immutable",
+        },
+      });
+    }
 
     return jsonResponse({
       success: true,

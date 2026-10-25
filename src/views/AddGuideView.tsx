@@ -118,6 +118,52 @@ async function compressImageFile(file: File, maxWidth = 1024, quality = 0.70): P
   });
 }
 
+const ADD_GUIDE_DRAFT_DB = "marinefix-add-guide-drafts";
+const ADD_GUIDE_DRAFT_STORE = "drafts";
+const ADD_GUIDE_DRAFT_KEY = "current";
+
+type PersistedUpload = { file: File; isPdf: boolean };
+type PersistedStep = { title: string; instruction: string; warning: string; uploadItems: PersistedUpload[] };
+type PersistedGuideDraft = {
+  submissionId: string; equipmentId: string; selectedEquip: string; authorEmail: string; authorPhone: string;
+  title: string; symptom: string; ppeText: string; toolsText: string; introduction: string;
+  steps: PersistedStep[]; uploadItems: PersistedUpload[]; savedAt: number;
+};
+
+function openGuideDraftDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(ADD_GUIDE_DRAFT_DB, 1);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains(ADD_GUIDE_DRAFT_STORE)) request.result.createObjectStore(ADD_GUIDE_DRAFT_STORE);
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function readGuideDraft(): Promise<PersistedGuideDraft | null> {
+  if (typeof indexedDB === "undefined") return null;
+  const db = await openGuideDraftDb();
+  return new Promise((resolve, reject) => {
+    const request = db.transaction(ADD_GUIDE_DRAFT_STORE, "readonly").objectStore(ADD_GUIDE_DRAFT_STORE).get(ADD_GUIDE_DRAFT_KEY);
+    request.onsuccess = () => { db.close(); resolve((request.result as PersistedGuideDraft) || null); };
+    request.onerror = () => { db.close(); reject(request.error); };
+  });
+}
+
+async function writeGuideDraft(draft: PersistedGuideDraft | null): Promise<void> {
+  if (typeof indexedDB === "undefined") return;
+  const db = await openGuideDraftDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(ADD_GUIDE_DRAFT_STORE, "readwrite");
+    if (draft) tx.objectStore(ADD_GUIDE_DRAFT_STORE).put(draft, ADD_GUIDE_DRAFT_KEY);
+    else tx.objectStore(ADD_GUIDE_DRAFT_STORE).delete(ADD_GUIDE_DRAFT_KEY);
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => { db.close(); reject(tx.error); };
+    tx.onabort = () => { db.close(); reject(tx.error); };
+  });
+}
+
 export function AddGuideView({
   equipmentId,
   categories,
@@ -150,6 +196,9 @@ export function AddGuideView({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmittedSuccessfully, setIsSubmittedSuccessfully] = useState(false);
+  const [draftRestored, setDraftRestored] = useState(false);
+  const [draftStatus, setDraftStatus] = useState<string | null>(null);
+  const [submissionId, setSubmissionId] = useState<string>(() => crypto.randomUUID());
 
   const [photoEditQueue, setPhotoEditQueue] = useState<File[]>([]);
   const [photoEditIndex, setPhotoEditIndex] = useState(0);
@@ -160,6 +209,54 @@ export function AddGuideView({
     setEquipmentList(equipment);
     if (equipmentId) setSelectedEquip(equipmentId);
   }, [equipment, equipmentId]);
+
+  // Restore the last in-progress guide, including File blobs, after refresh/reopen.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const draft = await readGuideDraft();
+        if (!active) return;
+        if (draft) {
+          if (draft.submissionId) setSubmissionId(draft.submissionId);
+          if (!equipmentId) setSelectedEquip(draft.selectedEquip || "");
+          setAuthorEmail(draft.authorEmail || "");
+          setAuthorPhone(draft.authorPhone || "");
+          setTitle(draft.title || "");
+          setSymptom(draft.symptom || "");
+          setPpeText(draft.ppeText ?? DEFAULT_PPE.join(", "));
+          setToolsText(draft.toolsText || "");
+          setIntroduction(draft.introduction || "");
+          setSteps((draft.steps || []).map((step) => ({
+            title: step.title || "", instruction: step.instruction || "", warning: step.warning || "",
+            uploadItems: (step.uploadItems || []).map((item) => ({ file: item.file, isPdf: item.isPdf, previewUrl: item.file.type === "application/pdf" ? "" : URL.createObjectURL(item.file) })),
+          })));
+          setUploadItems((draft.uploadItems || []).map((item) => ({ file: item.file, isPdf: item.isPdf, previewUrl: item.file.type === "application/pdf" ? "" : URL.createObjectURL(item.file) })));
+          setDraftStatus("Recovered your saved guide draft from this device.");
+        }
+      } catch (err) {
+        console.warn("Could not restore Add Guide draft:", err);
+      } finally { if (active) setDraftRestored(true); }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  // Persist text and attachments in IndexedDB. This survives page refresh and temporary network loss.
+  useEffect(() => {
+    if (!draftRestored || isSubmittedSuccessfully) return;
+    const draft: PersistedGuideDraft = {
+      submissionId, equipmentId: equipmentId || "", selectedEquip, authorEmail, authorPhone, title, symptom, ppeText, toolsText, introduction,
+      steps: steps.map((step) => ({ title: step.title, instruction: step.instruction, warning: step.warning, uploadItems: step.uploadItems.map(({ file, isPdf }) => ({ file, isPdf })) })),
+      uploadItems: uploadItems.map(({ file, isPdf }) => ({ file, isPdf })), savedAt: Date.now(),
+    };
+    const timer = window.setTimeout(() => {
+      void writeGuideDraft(draft).then(() => setDraftStatus("Draft saved on this device")).catch((err) => {
+        console.warn("Could not save Add Guide draft:", err);
+        setDraftStatus("Draft could not be saved locally. Keep this page open until submission succeeds.");
+      });
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [draftRestored, isSubmittedSuccessfully, submissionId, equipmentId, selectedEquip, authorEmail, authorPhone, title, symptom, ppeText, toolsText, introduction, steps, uploadItems]);
 
   // Find targeted equipment if launched from a specific equipment view
   const currentEquipment = useMemo(() => {
@@ -475,6 +572,7 @@ export function AddGuideView({
 
       // 3. Create Guide in D1
       await createGuide({
+        id: submissionId,
         equipment_id: finalEquipId,
         title: title.trim(),
         author_email: authorEmail.trim(),
@@ -496,6 +594,9 @@ export function AddGuideView({
       } as any);
 
       setIsSubmittedSuccessfully(true);
+      await writeGuideDraft(null).catch((err) => console.warn("Could not clear submitted guide draft:", err));
+      setSubmissionId(crypto.randomUUID());
+      setDraftStatus(null);
       window.scrollTo({ top: 0, behavior: "smooth" });
 
     } catch (err) {
@@ -612,6 +713,9 @@ export function AddGuideView({
       )}
 
       <form onSubmit={submit} className="space-y-6">
+        {draftStatus && !isSubmittedSuccessfully && (
+          <div role="status" className="rounded-xl border border-marine-border bg-marine-card px-4 py-3 text-sm text-marine-muted">{draftStatus}</div>
+        )}
         {/* Author Contact Details Card */}
         <div className="p-5 rounded-xl border border-marine-accent/30 bg-marine-accent/5 space-y-3">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

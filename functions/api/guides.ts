@@ -320,80 +320,79 @@ function sanitizeGuideRichText(value: unknown): string {
 export const onRequestPost: PagesFunction<Env> = async (context) => {
   try {
     const data = (await context.request.json()) as any;
-    const guideId = crypto.randomUUID();
+    const requestedId = typeof data.id === "string" ? data.id : "";
+    const guideId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestedId)
+      ? requestedId
+      : crypto.randomUUID();
+
+    // A retry after the server committed but the response was lost returns the
+    // already-created guide instead of creating a second pending guide.
+    const existing = await context.env.DB.prepare("SELECT id FROM guides WHERE id = ?")
+      .bind(guideId).first();
+    if (existing) return Response.json({ success: true, id: guideId, duplicate: true });
 
     const ppeJson = JSON.stringify(data.safety_ppe || []);
     const toolsJson = JSON.stringify(data.tools_required || []);
-
-    await context.env.DB.prepare(
+    const statements: D1PreparedStatement[] = [context.env.DB.prepare(
       `INSERT INTO guides (
-        id, equipment_id, title, author_email, author_phone, 
-        symptom, safety_ppe, tools_required, introduction, 
+        id, equipment_id, title, author_email, author_phone,
+        symptom, safety_ppe, tools_required, introduction,
         status, is_approved
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0)`
-    )
-      .bind(
-        guideId,
-        data.equipment_id,
-        data.title,
-        data.author_email || null,
-        data.author_phone || null,
-        data.symptom || null,
-        ppeJson,
-        toolsJson,
-        data.introduction || null
-      )
-      .run();
+    ).bind(
+      guideId, data.equipment_id, data.title, data.author_email || null,
+      data.author_phone || null, data.symptom || null, ppeJson, toolsJson,
+      data.introduction || null
+    )];
 
-    if (data.steps && Array.isArray(data.steps)) {
+    if (Array.isArray(data.steps)) {
       for (let i = 0; i < data.steps.length; i++) {
         const step = data.steps[i];
-
-        await context.env.DB.prepare(
+        statements.push(context.env.DB.prepare(
           `INSERT INTO guide_steps (
             id, guide_id, step_number, title, instruction, warning, images
           ) VALUES (?, ?, ?, ?, ?, ?, ?)`
-        )
-          .bind(
-            crypto.randomUUID(),
-            guideId,
-            step.step_number || i + 1,
-            step.title || `Step ${i + 1}`,
-            sanitizeGuideRichText(step.instruction || ""),
-            step.warning || null,
-            JSON.stringify(step.images || [])
-          )
-          .run();
+        ).bind(
+          crypto.randomUUID(), guideId, step.step_number || i + 1,
+          step.title || `Step ${i + 1}`, sanitizeGuideRichText(step.instruction || ""),
+          step.warning || null, JSON.stringify(step.images || [])
+        ));
       }
     }
 
-    if (data.image_urls && Array.isArray(data.image_urls)) {
+    if (Array.isArray(data.image_urls)) {
       for (let i = 0; i < data.image_urls.length; i++) {
         const img = data.image_urls[i];
         const imgUrl = typeof img === "string" ? img : img.url;
-
         if (imgUrl) {
-          await context.env.DB.prepare(
+          statements.push(context.env.DB.prepare(
             `INSERT INTO guide_images (
               id, guide_id, caption, url, order_index
             ) VALUES (?, ?, ?, ?, ?)`
-          )
-            .bind(
-              crypto.randomUUID(),
-              guideId,
-              img.name || img.caption || null,
-              imgUrl,
-              i
-            )
-            .run();
+          ).bind(crypto.randomUUID(), guideId, img.name || img.caption || null, imgUrl, i));
         }
       }
+    }
+
+    // D1 batch runs the statements transactionally, so a partial guide cannot
+    // be left behind if one of the step/image inserts fails.
+    try {
+      await context.env.DB.batch(statements);
+    } catch (error) {
+      // Handle two identical submissions arriving at almost the same time.
+      const raced = await context.env.DB.prepare("SELECT id FROM guides WHERE id = ?")
+        .bind(guideId).first();
+      if (raced) return Response.json({ success: true, id: guideId, duplicate: true });
+      throw error;
     }
 
     return Response.json({ success: true, id: guideId });
   } catch (err: any) {
     console.error("Guide creation error:", err);
-    return new Response(err.message, { status: 500 });
+    return new Response(JSON.stringify({ success: false, error: "Guide could not be saved. Please retry; your draft is preserved." }), {
+      status: 500,
+      headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
+    });
   }
 };
 
