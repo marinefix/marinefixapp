@@ -52,6 +52,34 @@ type PhotoEditTarget =
   | { scope: "step"; stepIndex: number }
   | { scope: "overall" };
 
+// Create a submission ID in HTTPS and local HTTP testing environments.
+function createSubmissionId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  const bytes = new Uint8Array(16);
+  if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
+    crypto.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < bytes.length; i++) {
+      bytes[i] = Math.floor(Math.random() * 256);
+    }
+  }
+
+  // RFC 4122 UUID v4 layout.
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0"));
+  return [
+    hex.slice(0, 4).join(""),
+    hex.slice(4, 6).join(""),
+    hex.slice(6, 8).join(""),
+    hex.slice(8, 10).join(""),
+    hex.slice(10, 16).join(""),
+  ].join("-");
+}
+
 const DEFAULT_PPE = [
   "Insulated electrical gloves",
   "Safety goggles",
@@ -198,7 +226,7 @@ export function AddGuideView({
   const [isSubmittedSuccessfully, setIsSubmittedSuccessfully] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
   const [draftStatus, setDraftStatus] = useState<string | null>(null);
-  const [submissionId, setSubmissionId] = useState<string>(() => crypto.randomUUID());
+  const [submissionId, setSubmissionId] = useState<string>(() => createSubmissionId());
 
   const [photoEditQueue, setPhotoEditQueue] = useState<File[]>([]);
   const [photoEditIndex, setPhotoEditIndex] = useState(0);
@@ -470,6 +498,14 @@ export function AddGuideView({
     }
   }
 
+  function getCurrentPersistedDraft(): PersistedGuideDraft {
+    return {
+      submissionId, equipmentId: equipmentId || "", selectedEquip, authorEmail, authorPhone, title, symptom, ppeText, toolsText, introduction,
+      steps: steps.map((step) => ({ title: step.title, instruction: step.instruction, warning: step.warning, uploadItems: step.uploadItems.map(({ file, isPdf }) => ({ file, isPdf })) })),
+      uploadItems: uploadItems.map(({ file, isPdf }) => ({ file, isPdf })), savedAt: Date.now(),
+    };
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -501,6 +537,16 @@ export function AddGuideView({
     if (!title.trim()) {
       setError("Please enter a guide title.");
       return;
+    }
+
+    // Save the latest form and selected files before starting any network upload.
+    // This avoids losing edits made inside the autosave debounce window.
+    try {
+      await writeGuideDraft(getCurrentPersistedDraft());
+      setDraftStatus("Draft saved on this device. Uploading guide…");
+    } catch (draftError) {
+      console.warn("Could not save guide draft before submission:", draftError);
+      setDraftStatus("Local draft save failed. Keep this page open while submission is attempted.");
     }
 
     setSubmitting(true);
@@ -595,13 +641,20 @@ export function AddGuideView({
 
       setIsSubmittedSuccessfully(true);
       await writeGuideDraft(null).catch((err) => console.warn("Could not clear submitted guide draft:", err));
-      setSubmissionId(crypto.randomUUID());
+      setSubmissionId(createSubmissionId());
       setDraftStatus(null);
       window.scrollTo({ top: 0, behavior: "smooth" });
 
     } catch (err) {
       console.error("Submit error:", err);
-      setError((err as Error).message);
+      try {
+        await writeGuideDraft(getCurrentPersistedDraft());
+        setDraftStatus("Submission failed because of a connection/server problem. Your guide and selected files are saved on this device. Reopen Add Guide on this device to restore and retry.");
+      } catch (draftError) {
+        console.error("Could not preserve failed guide submission locally:", draftError);
+        setDraftStatus("Submission failed and local draft storage could not be confirmed. Keep this page open and restore your connection before retrying.");
+      }
+      setError((err as Error).message || "Guide submission failed. Your draft is preserved on this device when storage is available.");
     } finally {
       setSubmitting(false);
       setUploadingFiles(false);

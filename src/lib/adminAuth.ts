@@ -169,20 +169,40 @@ export function initializeAdminSessionMonitor(): () => void {
 }
 
 export async function authenticateAdmin(passcode: string): Promise<AdminAuthResult> {
-  let response: Response;
-  try {
-    response = await fetch("/api/admin-login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      cache: "no-store",
-      body: JSON.stringify({ passcode }),
-    });
-  } catch {
+  const body = JSON.stringify({ passcode });
+  let response: Response | null = null;
+
+  // Retry transient failures on weak connections. A failed request is never
+  // reported as a wrong password unless the API explicitly says so.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      response = await fetch("/api/admin-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        cache: "no-store",
+        body,
+      });
+    } catch {
+      response = null;
+    }
+
+    if (response?.ok || response?.status === 401) break;
+    if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+  }
+
+  if (!response) return { ok: false, reason: "network" };
+
+  if (response.status === 401) {
+    try {
+      const data = await response.clone().json() as { error?: string };
+      if (data.error === "Invalid credentials") return { ok: false, reason: "invalid" };
+    } catch {
+      // An unexpected 401 response is not proof that the passcode was incorrect.
+    }
     return { ok: false, reason: "network" };
   }
 
-  if (response.status === 401) return { ok: false, reason: "invalid" };
   if (!response.ok) return { ok: false, reason: "network" };
 
   let data: { success?: boolean };

@@ -19,14 +19,19 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   </React.StrictMode>
 );
 
-// PWA Service Worker Registration with Auto-Update Check
+// PWA Service Worker: check for updates on load, when the network returns,
+// and when the user returns to the tab. No manual site-data clearing required.
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker
-      .register("/sw.js")
+      .register("/sw.js", { updateViaCache: "none" })
       .then((reg) => {
-        // Build maarum bothu pudhiya sw.js-ah force update check pannum
-        reg.update();
+        void reg.update().catch(() => {});
+        const checkForUpdate = () => { void reg.update().catch(() => {}); };
+        window.addEventListener("online", checkForUpdate);
+        document.addEventListener("visibilitychange", () => {
+          if (document.visibilityState === "visible") checkForUpdate();
+        });
         console.log("Service Worker Registered Successfully:", reg.scope);
       })
       .catch((err) => console.error("Service Worker Registration Failed:", err));

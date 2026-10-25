@@ -1,4 +1,4 @@
-const CACHE_NAME = 'marine-fix-v7';
+const CACHE_NAME = 'marine-fix-v8';
 const OPTIONAL_ASSETS = [
   '/manifest.json',
   '/anchor.svg',
@@ -94,8 +94,34 @@ self.addEventListener('fetch', (event) => {
   event.respondWith((async () => {
     const cache = await caches.open(CACHE_NAME);
 
-    // App JS/CSS and local images use cache-first so weak connections do not
-    // turn the page white or leave the category images broken after first load.
+    // JavaScript and CSS are revalidated against the deployed version first.
+    // If the connection is weak/offline, fall back to the last known-good copy.
+    // The cache version is bumped with this change so old shell/assets are retired.
+    const isAppCode = /\.(?:js|css)$/i.test(url.pathname);
+    if (isAppCode) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      try {
+        const response = await fetch(request, { cache: 'no-cache', signal: controller.signal });
+        if (response.ok && response.type !== 'opaque') {
+          await cache.put(request, response.clone()).catch(() => {});
+        }
+        if (response.ok) return response;
+        const cached = await cache.match(request) || await caches.match(request);
+        return cached || response;
+      } catch (_) {
+        const cached = await cache.match(request) || await caches.match(request);
+        if (cached) return cached;
+        return new Response('MarineFix app code is not available offline yet. Reconnect and reload.', {
+          status: 503,
+          headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' }
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    }
+
+    // Images and fonts use cache-first to reduce data use on weak connections.
     if (isStaticAsset(url.pathname)) {
       const cached = await cache.match(request) || await caches.match(request);
       if (cached) return cached;
