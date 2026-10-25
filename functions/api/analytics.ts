@@ -21,7 +21,7 @@ async function verifyAdminToken(request: Request, secret: string): Promise<boole
   const cookie = request.headers.get("Cookie") || "";
   const match = cookie.match(/(?:^|;\s*)marinefix_admin=([^;]+)/); if (!match) return false;
   const [timestamp, signature] = match[1].split("."); const tokenTime = Number(timestamp);
-  if (!timestamp || !signature || !Number.isFinite(tokenTime) || Date.now() - tokenTime > 8 * 60 * 60 * 1000 || Date.now() - tokenTime < 0) return false;
+  if (!timestamp || !signature || !Number.isFinite(tokenTime) || Date.now() - tokenTime > 60 * 60 * 1000 || Date.now() - tokenTime < 0) return false;
   try {
     const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["verify"]);
     const bytes = new Uint8Array(signature.match(/.{1,2}/g)?.map((b) => parseInt(b, 16)) || []); if (bytes.length !== 32) return false;

@@ -52,7 +52,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
         status: 200,
         headers: {
           "Content-Type": "application/json",
-          "Set-Cookie": `marinefix_admin=${token}; HttpOnly${secureCookie}; SameSite=Strict; Path=/; Max-Age=28800`,
+          "Set-Cookie": `marinefix_admin=${token}; HttpOnly${secureCookie}; SameSite=Strict; Path=/; Max-Age=3600`,
         },
       }
     );

@@ -11,7 +11,7 @@ type Props = {
 export function AdminLoginModal({ isOpen, onClose, onSuccess }: Props) {
   const [passcode, setPasscode] = useState("");
   const [showPass, setShowPass] = useState(false);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<"invalid" | "network" | null>(null);
   const [loading, setLoading] = useState(false);
 
   if (!isOpen) return null;
@@ -22,16 +22,16 @@ export function AdminLoginModal({ isOpen, onClose, onSuccess }: Props) {
     if (loading) return;
 
     setLoading(true);
-    setError(false);
+    setError(null);
 
-    const success = await authenticateAdmin(passcode);
+    const result = await authenticateAdmin(passcode);
 
-    if (success) {
+    if (result.ok) {
       setPasscode("");
       setLoading(false);
       onSuccess();
     } else {
-      setError(true);
+      setError(result.reason);
       setLoading(false);
     }
   };
@@ -68,7 +68,7 @@ export function AdminLoginModal({ isOpen, onClose, onSuccess }: Props) {
                 value={passcode}
                 onChange={(e) => {
                   setPasscode(e.target.value);
-                  setError(false);
+                  setError(null);
                 }}
                 placeholder="Enter passcode"
                 style={{ backgroundColor: "#152238", color: "#38bdf8" }}
@@ -93,8 +93,10 @@ export function AdminLoginModal({ isOpen, onClose, onSuccess }: Props) {
             </div>
 
             {error && (
-              <p className="text-[11px] text-rose-400 mt-1.5 font-medium">
-                Invalid secret passcode.
+              <p className="text-[11px] text-rose-400 mt-1.5 font-medium" role="alert">
+                {error === "invalid"
+                  ? "Invalid secret passcode."
+                  : "Could not verify the passcode because the connection failed. Check your network and try again."}
               </p>
             )}
           </div>

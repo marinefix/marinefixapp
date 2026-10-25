@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { SearchBar } from "./SearchBar";
 import { navigate } from "../lib/router";
-import { checkIsAdmin, logoutAdmin } from "../lib/adminAuth";
+import { checkIsAdmin, logoutAdmin, initializeAdminSessionMonitor } from "../lib/adminAuth";
 import { AdminLoginModal } from "./AdminLoginModal";
 import { useTheme } from "../lib/theme";
 
@@ -23,6 +23,8 @@ export function Header({ onToggleMobileMenu }: HeaderProps) {
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [isApp, setIsApp] = useState(false);
   const { theme, toggleTheme } = useTheme();
+
+  useEffect(() => initializeAdminSessionMonitor(), []);
 
   useEffect(() => {
     const checkAppMode = () => {
@@ -54,7 +56,17 @@ export function Header({ onToggleMobileMenu }: HeaderProps) {
     };
 
     const handleSessionChange = () => {
-      setIsAdmin(checkIsAdmin());
+      const authenticated = checkIsAdmin();
+      setIsAdmin(authenticated);
+
+      if (
+        !authenticated &&
+        (window.location.pathname.includes("admin") ||
+          window.location.search.includes("admin") ||
+          window.location.hash.includes("admin"))
+      ) {
+        navigate({ name: "home" });
+      }
     };
 
     handleHashCheck();

@@ -56,8 +56,8 @@ async function verifyAdminToken(
 
   if (!Number.isFinite(tokenTime)) return false;
 
-  // Token valid for 8 hours
-  if (Date.now() - tokenTime > 8 * 60 * 60 * 1000) {
+  // Admin session expires after one hour without activity; active sessions refresh the signed cookie.
+  if (Date.now() - tokenTime > 60 * 60 * 1000) {
     return false;
   }
 
