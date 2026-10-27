@@ -666,12 +666,12 @@ export function AddGuideView({
     return (
       <div className="fixed inset-0 z-[100] bg-black/80 p-4 sm:p-6 flex items-center justify-center">
         <div className="w-full max-w-5xl max-h-[95vh] overflow-hidden rounded-2xl border border-marine-border bg-marine-card shadow-2xl">
-          <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-marine-border">
-            <div>
+          <div className="flex items-start sm:items-center justify-between gap-3 px-4 py-3 border-b border-marine-border">
+            <div className="min-w-0 flex-1">
               <h2 className="font-bold text-marine-text">Edit Photo</h2>
               <p className="text-xs text-marine-muted">Photo {photoEditIndex + 1} of {photoEditQueue.length} · Edit only if needed, otherwise Skip.</p>
             </div>
-            <button type="button" onClick={() => { setPhotoEditQueue([]); setPhotoEditIndex(0); setPhotoEditTarget(null); }} className="px-3 py-1.5 rounded-lg border border-marine-border text-xs text-marine-muted hover:text-marine-text">Close</button>
+            <button type="button" onClick={() => { setPhotoEditQueue([]); setPhotoEditIndex(0); setPhotoEditTarget(null); }} className="shrink-0 whitespace-nowrap min-w-fit px-3 py-2 rounded-lg border border-marine-border text-xs text-marine-muted hover:text-marine-text">Close</button>
           </div>
           <div className="p-3 sm:p-4 overflow-auto max-h-[calc(95vh-120px)]">
             <PhotoAnnotationEditor
@@ -1046,16 +1046,16 @@ export function AddGuideView({
                       <ImageIcon className="h-3.5 w-3.5" /> Photos / PDF Schematic for Step {i + 1}
                     </label>
 
-                    <label className="flex items-center justify-center gap-2 p-3.5 border border-dashed border-marine-border hover:border-marine-accent/60 rounded-xl cursor-pointer bg-marine-dark/50 transition text-xs font-medium text-marine-text">
+                    <label className="flex w-full min-w-0 items-center justify-center gap-2 p-3.5 border border-dashed border-marine-border hover:border-marine-accent/60 rounded-xl cursor-pointer bg-marine-dark/50 transition text-xs font-medium text-marine-text text-center">
                       {compressing ? (
                         <Loader2 className="h-4 w-4 animate-spin text-marine-accent" />
                       ) : (
                         <Upload className="h-4 w-4 text-marine-accent" />
                       )}
-                      <span>
+                      <span className="min-w-0 break-words [overflow-wrap:anywhere]">
                         {compressing
                           ? "Optimizing & Compressing..."
-                          : `Upload Photo / PDF Drawing for Step ${i + 1}`}
+                          : <>Upload Photo / PDF Drawing for Step&nbsp;{i + 1}</>}
                       </span>
                       <input
                         type="file"
