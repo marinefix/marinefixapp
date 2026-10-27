@@ -74,71 +74,61 @@ function parseAttachment(value: any): Attachment | null {
   };
 }
 
-async function compressImageFile(
-  file: File,
-  maxWidth = 1024,
-  quality = 0.70
-): Promise<File> {
-  if (
-    file.type === "application/pdf" ||
-    file.name.toLowerCase().endsWith(".pdf")
-  ) {
+async function compressImageFile(file: File): Promise<File> {
+  if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
     return file;
   }
 
+  // Preserve the original pixel dimensions. Try high-quality WebP first, then
+  // reduce quality gradually to target ~1 MB without resizing the image.
+  const targetBytes = 1024 * 1024;
+  const qualities = [0.86, 0.82, 0.78, 0.74, 0.70];
+
   return new Promise((resolve) => {
     const reader = new FileReader();
-
     reader.onload = (event) => {
       const img = new Image();
-      img.src = event.target?.result as string;
-
-      img.onload = () => {
-        let width = img.width;
-        let height = img.height;
-
-        if (width > maxWidth) {
-          height = Math.round((height * maxWidth) / width);
-          width = maxWidth;
-        }
-
+      img.onload = async () => {
         const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-
+        canvas.width = img.naturalWidth || img.width;
+        canvas.height = img.naturalHeight || img.height;
         const ctx = canvas.getContext("2d");
         if (!ctx) {
           resolve(file);
           return;
         }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-        ctx.drawImage(img, 0, 0, width, height);
+        const encode = (quality: number) => new Promise<Blob | null>((done) => {
+          canvas.toBlob(done, "image/webp", quality);
+        });
 
-        canvas.toBlob(
-          (blob) => {
-            if (!blob) {
-              resolve(file);
-              return;
-            }
+        let best: Blob | null = null;
+        for (const quality of qualities) {
+          const blob = await encode(quality);
+          if (!blob) continue;
+          best = blob;
+          if (blob.size <= targetBytes) break;
+        }
 
-            const cleanName =
-              file.name.replace(/\.[^/.]+$/, "") + ".webp";
-
-            resolve(
-              new File([blob], cleanName, {
-                type: "image/webp",
-                lastModified: Date.now(),
-              })
-            );
-          },
-          "image/webp",
-          quality
-        );
+        if (!best) {
+          resolve(file);
+          return;
+        }
+        // Avoid increasing storage usage if WebP encoding is larger than source.
+        if (best.size >= file.size) {
+          resolve(file);
+          return;
+        }
+        const cleanName = file.name.replace(/\.[^/.]+$/, "") + ".webp";
+        resolve(new File([best], cleanName, {
+          type: "image/webp",
+          lastModified: Date.now(),
+        }));
       };
-
       img.onerror = () => resolve(file);
+      img.src = event.target?.result as string;
     };
-
     reader.onerror = () => resolve(file);
     reader.readAsDataURL(file);
   });
